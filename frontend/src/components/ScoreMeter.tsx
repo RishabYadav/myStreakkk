@@ -1,6 +1,7 @@
-import React, { useEffect, useId, useMemo, useRef, useState } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
-import Svg, { Circle, Defs, G, Line, LinearGradient, Path, Stop } from 'react-native-svg';
+import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
+import { View, Text, StyleSheet, PanResponder } from 'react-native';
+import Svg, { Circle, Defs, G, Line, LinearGradient, Path, Polygon, Stop } from 'react-native-svg';
+import * as Haptics from 'expo-haptics';
 import { fonts } from '../theme';
 
 interface Props {
@@ -43,6 +44,34 @@ function scoreTier(score: number) {
   return { label: 'At risk', color: '#DC2626', bg: '#FEE2E2' };
 }
 
+function scoreToAngle(score: number, min: number, max: number) {
+  const t = Math.min(Math.max((score - min) / (max - min), 0), 1);
+  return Math.PI * (1 - t);
+}
+
+function angleToScore(angle: number, min: number, max: number) {
+  const clamped = Math.min(Math.max(angle, 0), Math.PI);
+  const t = 1 - clamped / Math.PI;
+  return Math.round(min + t * (max - min));
+}
+
+function arrowPoints(cx: number, cy: number, r: number, angleRad: number) {
+  const px = cx + r * Math.cos(angleRad);
+  const py = cy - r * Math.sin(angleRad);
+  const toCenter = Math.atan2(cy - py, cx - px);
+  const depth = 16;
+  const base = 11;
+  const tipX = px + Math.cos(toCenter) * depth;
+  const tipY = py + Math.sin(toCenter) * depth;
+  const perp = toCenter + Math.PI / 2;
+  const half = base / 2;
+  const b1x = px + Math.cos(perp) * half;
+  const b1y = py + Math.sin(perp) * half;
+  const b2x = px - Math.cos(perp) * half;
+  const b2y = py - Math.sin(perp) * half;
+  return `${tipX},${tipY} ${b1x},${b1y} ${b2x},${b2y}`;
+}
+
 export default function ScoreMeter({
   score,
   min = 0,
@@ -61,20 +90,22 @@ export default function ScoreMeter({
   const gaugeHeight = svgHeight + 88;
 
   const [displayScore, setDisplayScore] = useState(score);
-  const [pointerAngle, setPointerAngle] = useState(() => {
-    const t = Math.min(Math.max((score - min) / (max - min), 0), 1);
-    return Math.PI * (1 - t);
-  });
+  const [pointerAngle, setPointerAngle] = useState(() => scoreToAngle(score, min, max));
+  const [dragging, setDragging] = useState(false);
+  const dragScoreRef = useRef<number | null>(null);
   const prevScore = useRef(score);
+  const geomRef = useRef({ cx, cy, min, max });
+
+  geomRef.current = { cx, cy, min, max };
 
   useEffect(() => {
+    if (dragging) return;
     const start = prevScore.current;
     const end = score;
     prevScore.current = score;
 
     if (start === end) {
-      const t = Math.min(Math.max((end - min) / (max - min), 0), 1);
-      setPointerAngle(Math.PI * (1 - t));
+      setPointerAngle(scoreToAngle(end, min, max));
       setDisplayScore(end);
       return;
     }
@@ -87,34 +118,71 @@ export default function ScoreMeter({
       const elapsed = Date.now() - startTime;
       const eased = 1 - Math.pow(1 - Math.min(elapsed / duration, 1), 3);
       const current = start + (end - start) * eased;
-      const t = Math.min(Math.max((current - min) / (max - min), 0), 1);
       setDisplayScore(Math.round(current));
-      setPointerAngle(Math.PI * (1 - t));
+      setPointerAngle(scoreToAngle(current, min, max));
       if (elapsed < duration) raf = requestAnimationFrame(tick);
     };
 
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [score, min, max]);
+  }, [score, min, max, dragging]);
+
+  const applyTouch = useCallback((locationX: number, locationY: number) => {
+    const { cx: gcx, cy: gcy, min: gMin, max: gMax } = geomRef.current;
+    const dx = locationX - gcx;
+    const dy = gcy - locationY;
+    if (dy < -8) return;
+    let angle = Math.atan2(dy, dx);
+    if (angle < 0 || angle > Math.PI) return;
+    const next = angleToScore(angle, gMin, gMax);
+    dragScoreRef.current = next;
+    setDisplayScore(next);
+    setPointerAngle(angle);
+  }, []);
+
+  const panResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onStartShouldSetPanResponder: () => true,
+        onMoveShouldSetPanResponder: () => true,
+        onPanResponderGrant: (evt) => {
+          setDragging(true);
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          applyTouch(evt.nativeEvent.locationX, evt.nativeEvent.locationY);
+        },
+        onPanResponderMove: (evt) => {
+          applyTouch(evt.nativeEvent.locationX, evt.nativeEvent.locationY);
+        },
+        onPanResponderRelease: () => {
+          setDragging(false);
+          dragScoreRef.current = null;
+          const end = prevScore.current;
+          setDisplayScore(end);
+          setPointerAngle(scoreToAngle(end, min, max));
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        },
+        onPanResponderTerminate: () => {
+          setDragging(false);
+          dragScoreRef.current = null;
+          setDisplayScore(prevScore.current);
+          setPointerAngle(scoreToAngle(prevScore.current, min, max));
+        },
+      }),
+    [applyTouch, min, max],
+  );
 
   const arcPath = useMemo(() => describeArc(cx, cy, radius, Math.PI, 0), [cx, cy, radius]);
   const tier = useMemo(() => scoreTier(displayScore), [displayScore]);
-
-  const knob = useMemo(() => polar(cx, cy, radius, pointerAngle), [cx, cy, radius, pointerAngle]);
-  const needleInner = useMemo(
-    () => polar(cx, cy, radius - arcStroke * 0.55, pointerAngle),
-    [cx, cy, radius, pointerAngle, arcStroke],
-  );
+  const arrow = useMemo(() => arrowPoints(cx, cy, radius, pointerAngle), [cx, cy, radius, pointerAngle]);
+  const arrowBase = useMemo(() => polar(cx, cy, radius, pointerAngle), [cx, cy, radius, pointerAngle]);
 
   const ticks = useMemo(() => {
     return [0, 0.25, 0.5, 0.75, 1].map((t) => {
       const angle = Math.PI * (1 - t);
       return {
         t,
-        angle,
         inner: polar(cx, cy, radius - trackStroke / 2 - 2, angle),
         outer: polar(cx, cy, radius + trackStroke / 2 + 2, angle),
-        label: polar(cx, cy, radius + trackStroke / 2 + 16, angle),
       };
     });
   }, [cx, cy, radius, trackStroke]);
@@ -124,70 +192,69 @@ export default function ScoreMeter({
 
   return (
     <View style={[styles.wrap, { width, height: gaugeHeight }]}>
-      <View style={[styles.gaugeGlow, { width: radius * 1.85, height: radius * 1.1, top: 8, left: (width - radius * 1.85) / 2 }]} />
-      <Svg width={width} height={svgHeight} style={styles.svg}>
-        <Defs>
-          <LinearGradient id={gradId} x1="0%" y1="0%" x2="100%" y2="0%">
-            {GRADIENT.map((seg) => (
-              <Stop key={seg.stop} offset={`${seg.stop * 100}%`} stopColor={seg.color} />
-            ))}
-          </LinearGradient>
-        </Defs>
+      <View style={[styles.arcZone, { height: svgHeight }]} {...panResponder.panHandlers}>
+        <Svg width={width} height={svgHeight}>
+          <Defs>
+            <LinearGradient id={gradId} x1="0%" y1="0%" x2="100%" y2="0%">
+              {GRADIENT.map((seg) => (
+                <Stop key={seg.stop} offset={`${seg.stop * 100}%`} stopColor={seg.color} />
+              ))}
+            </LinearGradient>
+          </Defs>
 
-        <Path
-          d={arcPath}
-          stroke="#E8EDF5"
-          strokeWidth={trackStroke}
-          fill="none"
-          strokeLinecap="round"
-        />
-        <Path
-          d={arcPath}
-          stroke={`url(#${gradId})`}
-          strokeWidth={arcStroke}
-          fill="none"
-          strokeLinecap="round"
-        />
-
-        {ticks.map(({ t, inner, outer }) => (
-          <Line
-            key={t}
-            x1={inner.x}
-            y1={inner.y}
-            x2={outer.x}
-            y2={outer.y}
-            stroke="#CBD5E1"
-            strokeWidth={t === 0 || t === 1 ? 0 : 1.5}
+          <Path
+            d={arcPath}
+            stroke="#E8EDF5"
+            strokeWidth={trackStroke}
+            fill="none"
             strokeLinecap="round"
           />
-        ))}
-
-        <G>
-          <Circle cx={knob.x} cy={knob.y} r={13} fill="rgba(15,23,42,0.12)" />
-          <Circle cx={knob.x} cy={knob.y - 1} r={11} fill="#FFFFFF" stroke="#1E3A8A" strokeWidth={2.5} />
-          <Circle cx={knob.x} cy={knob.y - 1} r={4.5} fill={tier.color} />
-          <Line
-            x1={knob.x}
-            y1={knob.y - 1}
-            x2={needleInner.x}
-            y2={needleInner.y}
-            stroke="#1E3A8A"
-            strokeWidth={2}
+          <Path
+            d={arcPath}
+            stroke={`url(#${gradId})`}
+            strokeWidth={arcStroke}
+            fill="none"
             strokeLinecap="round"
           />
-        </G>
-      </Svg>
 
-      <Text style={[styles.endLabel, { left: leftEnd.x - 14, top: leftEnd.y + 6 }]}>{min}</Text>
-      <Text style={[styles.endLabel, { left: rightEnd.x - 14, top: rightEnd.y + 6 }]}>{max}</Text>
+          {ticks.map(({ t, inner, outer }) => (
+            <Line
+              key={t}
+              x1={inner.x}
+              y1={inner.y}
+              x2={outer.x}
+              y2={outer.y}
+              stroke="#CBD5E1"
+              strokeWidth={t === 0 || t === 1 ? 0 : 1.5}
+              strokeLinecap="round"
+            />
+          ))}
 
-      <View style={styles.scoreZone}>
+          <G>
+            <Circle
+              cx={arrowBase.x}
+              cy={arrowBase.y}
+              r={dragging ? 7 : 5}
+              fill="#FFFFFF"
+              stroke="#1E3A8A"
+              strokeWidth={2}
+            />
+            <Polygon points={arrow} fill="#1E3A8A" />
+          </G>
+        </Svg>
+
+        <Text style={[styles.endLabel, { left: leftEnd.x - 14, top: leftEnd.y + 6 }]}>{min}</Text>
+        <Text style={[styles.endLabel, { left: rightEnd.x - 14, top: rightEnd.y + 6 }]}>{max}</Text>
+      </View>
+
+      <View style={styles.scoreZone} pointerEvents="none">
         <View style={[styles.tierPill, { backgroundColor: tier.bg }]}>
           <View style={[styles.tierDot, { backgroundColor: tier.color }]} />
           <Text style={[styles.tierText, { color: tier.color }]}>{tier.label}</Text>
         </View>
         <Text style={[styles.score, { color: scoreColor }]}>{displayScore}</Text>
         {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
+        {dragging ? <Text style={styles.dragHint}>Release to set back to {score}</Text> : null}
       </View>
     </View>
   );
@@ -197,15 +264,11 @@ const styles = StyleSheet.create({
   wrap: {
     alignSelf: 'center',
     position: 'relative',
+    overflow: 'hidden',
   },
-  gaugeGlow: {
-    position: 'absolute',
-    borderRadius: 999,
-    backgroundColor: '#F1F5F9',
-    opacity: 0.85,
-  },
-  svg: {
-    alignSelf: 'center',
+  arcZone: {
+    width: '100%',
+    position: 'relative',
   },
   endLabel: {
     position: 'absolute',
@@ -256,5 +319,11 @@ const styles = StyleSheet.create({
     marginTop: 4,
     lineHeight: 18,
     maxWidth: 270,
+  },
+  dragHint: {
+    fontFamily: fonts.body,
+    fontSize: 10,
+    color: '#94A3B8',
+    marginTop: 4,
   },
 });

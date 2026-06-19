@@ -2,7 +2,6 @@ import React, { useMemo } from 'react';
 import { View, Text, ScrollView, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, fonts, shadows, radius, space, type as typeScale, touch } from '../theme';
-import Button from '../components/ui/Button';
 import { Customer } from '../types';
 import ScoreMeter from '../components/ScoreMeter';
 import CoverageSourceTag from '../components/CoverageSourceTag';
@@ -27,7 +26,6 @@ interface Props {
   hasEnriched: boolean;
   onBack: () => void;
   onOpenQuestionnaire: () => void;
-  onOpenExpansion: () => void;
   talkingPoints?: string[];
   lessonRecommendations?: LessonItem[];
   loading?: boolean;
@@ -67,7 +65,6 @@ export default function CustomerFile({
   hasEnriched,
   onBack,
   onOpenQuestionnaire,
-  onOpenExpansion,
   talkingPoints,
   lessonRecommendations,
   loading,
@@ -254,16 +251,6 @@ export default function CustomerFile({
         </View>
       ))}
       </FadeSlideIn>
-
-      <FadeSlideIn index={6}>
-      <View style={styles.previewWrap}>
-        <Button
-          label={`Preview what ${firstName} sees →`}
-          variant="secondary"
-          onPress={onOpenExpansion}
-        />
-      </View>
-      </FadeSlideIn>
     </ScrollView>
   );
 }
@@ -334,6 +321,7 @@ const styles = StyleSheet.create({
     borderColor: '#DBEAFE',
     alignSelf: 'stretch',
     marginHorizontal: space[2],
+    zIndex: 2,
   },
   deltaIcon: {
     width: 22,
@@ -483,5 +471,4 @@ const styles = StyleSheet.create({
   },
   talkBullet: { fontSize: 16 },
   talkText: { ...typeScale.bodySm, color: colors.text.secondary, flex: 1 },
-  previewWrap: { marginHorizontal: space[4], marginTop: space[2] },
 });

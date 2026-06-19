@@ -463,7 +463,6 @@ function MainShell({
           hasEnriched={hasEnriched && selectedCustomerId === targetId}
           onBack={() => onSelectCustomer(null)}
           onOpenQuestionnaire={onOpenQuestionnaire}
-          onOpenExpansion={() => onShowExpansion(true)}
           talkingPoints={customerProfileData.talking_points}
           lessonRecommendations={customerProfileData.lesson_recommendations}
           loading={profileLoading}
