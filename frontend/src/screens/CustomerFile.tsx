@@ -11,6 +11,7 @@ import SectionHeader from '../components/ui/SectionHeader';
 import { Skeleton } from '../components/ui/Skeleton';
 import { FadeSlideIn, FloatView, PulseScale } from '../components/ui/motion';
 import ScoreBreakdownAccordion from '../components/customer/ScoreBreakdownAccordion';
+import CoachConversationGuide from '../components/partner/CoachConversationGuide';
 import { CADENCE_AI } from '../mockData';
 
 interface LessonItem {
@@ -232,24 +233,13 @@ export default function CustomerFile({
       </FadeSlideIn>
 
       <FadeSlideIn index={5}>
-      <SectionHeader title="Talking points & lessons" subtitle="Use these in your conversation" accent={colors.accent} />
-      {lessons.map((lesson, i) => (
-        <View key={i} style={[styles.lessonCard, shadows.card, lesson.priority && styles.lessonPriority]}>
-          {lesson.priority && <Text style={styles.priority}>PRIORITY</Text>}
-          <FloatView distance={2} duration={2200} delay={i * 80}>
-            <Text style={styles.lessonIcon}>{lesson.icon}</Text>
-          </FloatView>
-          <Text style={styles.lessonTitle}>{lesson.title}</Text>
-          <Text style={styles.lessonBody}>{lesson.body}</Text>
+        <View style={styles.coachGuideWrap}>
+          <CoachConversationGuide
+            customerFirstName={firstName}
+            talkingPoints={talks}
+            lessons={lessons}
+          />
         </View>
-      ))}
-
-      {talks.map((tp, i) => (
-        <View key={`tp-${i}`} style={styles.talkCard}>
-          <Text style={styles.talkBullet}>💬</Text>
-          <Text style={styles.talkText}>{tp}</Text>
-        </View>
-      ))}
       </FadeSlideIn>
     </ScrollView>
   );
@@ -439,36 +429,7 @@ const styles = StyleSheet.create({
   statusCovered: { backgroundColor: colors.status.successSoft },
   coverageStatus: { fontFamily: fonts.bodyBold, fontSize: typeScale.caption.fontSize, color: colors.text.secondary },
   coveredText: { color: colors.status.success },
-  lessonCard: {
+  coachGuideWrap: {
     marginHorizontal: space[4],
-    backgroundColor: colors.surface.card,
-    borderRadius: radius.md,
-    padding: space[4],
-    marginBottom: space[3],
-    borderWidth: 1,
-    borderColor: colors.border.subtle,
   },
-  lessonPriority: { borderColor: colors.partner.accent, borderWidth: 1.5 },
-  priority: {
-    ...typeScale.label,
-    color: colors.partner.accent,
-    marginBottom: space[2],
-  },
-  lessonIcon: { fontSize: 24, marginBottom: space[2] },
-  lessonTitle: { fontFamily: fonts.heading, fontSize: typeScale.body.fontSize, color: colors.text.primary, marginBottom: space[2] },
-  lessonBody: { ...typeScale.bodySm, color: colors.text.secondary, lineHeight: 20 },
-  talkCard: {
-    marginHorizontal: space[4],
-    backgroundColor: colors.surface.card,
-    borderRadius: radius.md,
-    padding: space[4],
-    marginBottom: space[2],
-    flexDirection: 'row',
-    gap: space[3],
-    alignItems: 'flex-start',
-    borderWidth: 1,
-    borderColor: colors.border.default,
-  },
-  talkBullet: { fontSize: 16 },
-  talkText: { ...typeScale.bodySm, color: colors.text.secondary, flex: 1 },
 });
