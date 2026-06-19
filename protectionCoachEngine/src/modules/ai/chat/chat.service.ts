@@ -29,8 +29,9 @@ export async function startChatSession(customerId: string): Promise<string> {
 export async function sendMessage(
   sessionId: string,
   customerId: string,
-  userMessage: string
-): Promise<string> {
+  userMessage: string,
+  callerRole: 'customer' | 'partner' = 'customer'
+): Promise<{ content: string; suggestions: string[] }> {
   // 1. Save user message to MongoDB
   await ChatMessage.create({
     session_id: sessionId,
@@ -55,29 +56,54 @@ export async function sendMessage(
     .limit(8)
     .lean();
 
+  const senderLabel = callerRole === 'partner' ? 'Advisor' : 'Customer';
   const historyText = history
     .reverse()
-    .map((m) => `${m.role === 'user' ? 'Customer' : 'Coach'}: ${m.content}`)
+    .map((m) => `${m.role === 'user' ? senderLabel : 'Coach'}: ${m.content}`)
     .join('\n');
 
-  // 5. Build full prompt
-  const systemPrompt = buildChatSystemPrompt(contextStr);
+  // 5. Build full prompt with role-aware system prompt
+  const systemPrompt = buildChatSystemPrompt(contextStr, callerRole);
+  const suggestionsInstruction = `\n\nAFTER your response, on a new line write "SUGGESTIONS:" followed by exactly 3 short follow-up questions the ${callerRole === 'partner' ? 'advisor' : 'customer'} might ask next, separated by "|". Keep each under 40 characters. Base them on the customer's actual data and gaps.`;
+
   const fullPrompt = historyText
-    ? `${systemPrompt}\n\nCONVERSATION SO FAR:\n${historyText}\n\nCustomer: ${userMessage}\nCoach:`
-    : `${systemPrompt}\n\nCustomer: ${userMessage}\nCoach:`;
+    ? `${systemPrompt}${suggestionsInstruction}\n\nCONVERSATION SO FAR:\n${historyText}\n\n${senderLabel}: ${userMessage}\nCoach:`
+    : `${systemPrompt}${suggestionsInstruction}\n\n${senderLabel}: ${userMessage}\nCoach:`;
 
   // 6. Call Gemini
-  const aiResponse = await generateResponse(fullPrompt);
+  const rawResponse = await generateResponse(fullPrompt);
 
-  // 7. Save AI response to MongoDB
+  // 7. Parse suggestions from response
+  const { content, suggestions } = parseSuggestions(rawResponse);
+
+  // 8. Save AI response to MongoDB
   await ChatMessage.create({
     session_id: sessionId,
     customer_id: customerId,
     role: 'assistant',
-    content: aiResponse,
+    content,
   });
 
-  return aiResponse;
+  return { content, suggestions };
+}
+
+function parseSuggestions(raw: string): { content: string; suggestions: string[] } {
+  const suggestionsMarker = 'SUGGESTIONS:';
+  const idx = raw.lastIndexOf(suggestionsMarker);
+
+  if (idx === -1) {
+    return { content: raw.trim(), suggestions: [] };
+  }
+
+  const content = raw.substring(0, idx).trim();
+  const suggestionsRaw = raw.substring(idx + suggestionsMarker.length).trim();
+  const suggestions = suggestionsRaw
+    .split('|')
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0 && s.length <= 60)
+    .slice(0, 3);
+
+  return { content, suggestions };
 }
 
 export async function getChatHistory(sessionId: string): Promise<any[]> {
