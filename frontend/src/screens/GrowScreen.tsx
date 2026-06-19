@@ -11,8 +11,6 @@ import {
   LayoutAnimation,
   Platform,
   UIManager,
-  NativeScrollEvent,
-  NativeSyntheticEvent,
   ActivityIndicator,
   useWindowDimensions,
 } from 'react-native';
@@ -21,12 +19,11 @@ import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import ViewShot from 'react-native-view-shot';
 import { colors, fonts, radius, shadows, space, type as typeScale } from '../theme';
-import { Customer, GrowCardTemplate } from '../types';
+import { Customer } from '../types';
 import Toast from '../components/ui/Toast';
 import PressableScale from '../components/ui/PressableScale';
 import PartnerScreenHeader from '../components/partner/PartnerScreenHeader';
 import {
-  CarouselDot,
   FadeSlideIn,
 } from '../components/ui/motion';
 import {
@@ -35,7 +32,6 @@ import {
 } from '../components/grow/GrowVisuals';
 import HtmlGrowCard, { GROW_CARD_RENDER_W } from '../components/grow/HtmlGrowCard';
 import GrowPosterImage from '../components/grow/GrowPosterImage';
-import { fetchGrowCardTemplates } from '../services/growCards';
 import {
   buildTemplatePayload,
   fetchRecommendedTemplate,
@@ -49,8 +45,6 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
   UIManager.setLayoutAnimationEnabledExperimental(true);
 }
 
-const GREETING_CARD_W = 200;
-const GREETING_SNAP = GREETING_CARD_W + 12;
 
 interface Props {
   customers: Customer[];
@@ -272,17 +266,12 @@ export default function GrowScreen({ customers, streakDay, onBack }: Props) {
   const [modalKind, setModalKind] = useState<ModalKind>(null);
   const [modalPayload, setModalPayload] = useState<ModalPayload | null>(null);
   const [toast, setToast] = useState<string | null>(null);
-  const [greetingIndex, setGreetingIndex] = useState(0);
-  const [growCards, setGrowCards] = useState<GrowCardTemplate[]>([]);
-  const [cardsLoading, setCardsLoading] = useState(true);
-  const [cardsError, setCardsError] = useState<string | null>(null);
   const [sharingCard, setSharingCard] = useState(false);
   const [shareDraftText, setShareDraftText] = useState('');
   const [captureHtml, setCaptureHtml] = useState<string | null>(null);
   const [templateCache, setTemplateCache] = useState<Record<string, TemplateResult>>({});
   const [templateLoadingKey, setTemplateLoadingKey] = useState<string | null>(null);
   const [templateErrors, setTemplateErrors] = useState<Record<string, string>>({});
-  const greetingScrollRef = useRef<ScrollView>(null);
   const cardCaptureRef = useRef<ViewShot>(null);
   const captureReadyRef = useRef(false);
 
@@ -351,42 +340,6 @@ export default function GrowScreen({ customers, streakDay, onBack }: Props) {
     };
   }, [activeSection, customer, templateCacheKey]);
 
-  const { width: windowWidth } = useWindowDimensions();
-  const greetingSideInset = Math.max(0, (windowWidth - GREETING_CARD_W) / 2);
-
-  useEffect(() => {
-    let cancelled = false;
-    setCardsLoading(true);
-    setCardsError(null);
-    fetchGrowCardTemplates()
-      .then((cards) => {
-        if (!cancelled) setGrowCards(cards);
-      })
-      .catch(() => {
-        if (!cancelled) setCardsError('Could not load greeting cards.');
-      })
-      .finally(() => {
-        if (!cancelled) setCardsLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  const personalizedCards = useMemo(
-    () =>
-      growCards.map((card) => {
-        const shareText = personalize(card.shareMessageTemplate, customer);
-        return {
-          ...card,
-          templateHtml: card.html,
-          shareText,
-          html: renderGrowCardHtml(card.html, customer, shareText),
-        };
-      }),
-    [growCards, customer],
-  );
-
   const modalCardHtml = useMemo(() => {
     if (!modalPayload?.cardTemplateHtml || modalKind !== 'whatsapp') return null;
     return renderGrowCardHtml(modalPayload.cardTemplateHtml, customer, shareDraftText);
@@ -417,10 +370,6 @@ export default function GrowScreen({ customers, streakDay, onBack }: Props) {
       cardId,
     });
     setModalKind('whatsapp');
-  };
-
-  const openCardShare = (card: (typeof personalizedCards)[number]) => {
-    openShare(card.title, card.shareMessageTemplate, card.id, card.templateHtml, card.id);
   };
 
   const openDownload = (title: string, imageType: string) => {
@@ -470,12 +419,6 @@ export default function GrowScreen({ customers, streakDay, onBack }: Props) {
     }
   };
 
-  const onGreetingScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
-    const idx = Math.round(e.nativeEvent.contentOffset.x / GREETING_SNAP);
-    const max = Math.max(0, personalizedCards.length - 1);
-    setGreetingIndex(Math.min(max, Math.max(0, idx)));
-  };
-
   const waitForCardCapture = () =>
     new Promise<void>((resolve, reject) => {
       const started = Date.now();
@@ -500,125 +443,38 @@ export default function GrowScreen({ customers, streakDay, onBack }: Props) {
   ];
 
   const renderGreetings = () => {
-    if (cardsLoading) {
-      return (
-        <View style={styles.cardsLoading}>
-          <ActivityIndicator color={colors.partner.accent} />
-          <Text style={styles.cardsLoadingText}>Loading cards…</Text>
-        </View>
-      );
-    }
-
-    if (cardsError || personalizedCards.length === 0) {
-      return (
-        <View style={styles.cardsLoading}>
-          <Feather name="alert-circle" size={20} color={colors.text.tertiary} />
-          <Text style={styles.cardsLoadingText}>{cardsError ?? 'No cards available.'}</Text>
-        </View>
-      );
-    }
-
-    const isSingleCard = personalizedCards.length === 1;
-
-    const cardTile = (
-      card: (typeof personalizedCards)[number],
-      width: number,
-      last: boolean,
-      spaced: boolean,
-    ) => (
-      <PressableScale
-        key={card.id}
-        onPress={() => openCardShare(card)}
-        style={[styles.greetingWrap, spaced && !last && styles.greetingWrapSpaced]}
-        haptic
-      >
-        <HtmlGrowCard html={card.html} width={width} />
-        <View style={styles.greetingOverlay}>
-          <Feather name="send" size={14} color="#FFF" />
-          <Text style={styles.greetingOverlayText}>Tap to share</Text>
-        </View>
-      </PressableScale>
-    );
-
-    const cardsRowWidth =
-      personalizedCards.length * GREETING_CARD_W + (personalizedCards.length - 1) * 12;
-    const cardsFitOnScreen = cardsRowWidth <= windowWidth;
+    const previewCaption =
+      activeTemplate?.content.caption ??
+      `Happy Birthday ${customer.name.split(' ')[0]}! Wishing you a wonderful year ahead. 🎂`;
 
     return (
       <FadeSlideIn index={0} key={`greetings-${customer.customer_id}`}>
-        {activeTemplate?.posterImage?.dataBase64 ? (
-          <View style={styles.greetingApiPreview}>
-            <Text style={styles.groupTitle}>AI Card Preview</Text>
-            <GrowPosterImage
-              dataBase64={activeTemplate.posterImage.dataBase64}
-              mimeType={activeTemplate.posterImage.mimeType}
-              width={GREETING_CARD_W}
-            />
+        <GrowPosterImage
+          loading={templateLoading}
+          error={templateError}
+          dataBase64={activeTemplate?.posterImage?.dataBase64}
+          mimeType={activeTemplate?.posterImage?.mimeType}
+        />
+        <Group title="Message Preview">
+          <View style={styles.previewBlock}>
+            <Text style={styles.previewText}>{previewCaption}</Text>
+            <PressableScale onPress={() => copyPreview(previewCaption)} style={styles.copyChip} haptic>
+              <Feather name="copy" size={12} color={colors.partner.accent} />
+              <Text style={styles.copyChipText}>Copy</Text>
+            </PressableScale>
           </View>
-        ) : templateLoading ? (
-          <View style={styles.cardsLoading}>
-            <ActivityIndicator color={colors.partner.accent} />
-            <Text style={styles.cardsLoadingText}>Generating card…</Text>
-          </View>
-        ) : null}
-        <View style={styles.greetingCarousel}>
-        {isSingleCard ? (
-          <View style={styles.greetingSingle}>
-            {cardTile(personalizedCards[0], GREETING_CARD_W, true, false)}
-          </View>
-        ) : cardsFitOnScreen ? (
-          <View style={styles.greetingRow}>
-            {personalizedCards.map((card, i) =>
-              cardTile(card, GREETING_CARD_W, i === personalizedCards.length - 1, false),
-            )}
-          </View>
-        ) : (
-          <ScrollView
-            ref={greetingScrollRef}
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            decelerationRate="fast"
-            snapToInterval={GREETING_SNAP}
-            snapToAlignment="center"
-            onScroll={onGreetingScroll}
-            scrollEventThrottle={16}
-            contentContainerStyle={[
-              styles.greetingScroll,
-              { paddingHorizontal: greetingSideInset },
-            ]}
-          >
-            {personalizedCards.map((card, i) =>
-              cardTile(card, GREETING_CARD_W, i === personalizedCards.length - 1, true),
-            )}
-          </ScrollView>
-        )}
-        {!isSingleCard && !cardsFitOnScreen ? (
-        <View style={styles.dotRow}>
-          {personalizedCards.map((_, i) => (
-            <CarouselDot
-              key={i}
-              active={greetingIndex === i}
-              activeColor={colors.partner.accent}
-              inactiveColor="#D1D1D6"
-            />
-          ))}
-        </View>
-        ) : null}
-        </View>
-        <Group title="Templates">
-          {personalizedCards.map((card, i) => (
-            <GroupRow
-              key={card.id}
-              label={card.title}
-              chevron
-              last={i === personalizedCards.length - 1}
-              onPress={() => {
-                greetingScrollRef.current?.scrollTo({ x: i * GREETING_SNAP, animated: true });
-                openCardShare(card);
-              }}
-            />
-          ))}
         </Group>
+        <ActionBar
+          onShare={() =>
+            openShare(
+              'Birthday Card',
+              activeTemplate?.content.caption ??
+                'Happy Birthday {NAME}! Wishing you a wonderful year ahead. 🎂',
+              'birthday'
+            )
+          }
+          onDownload={() => openDownload('Birthday Card', 'birthday')}
+        />
         <CompactNote
           customerName={customer.name}
           sectionKey="greetings"
@@ -677,18 +533,10 @@ export default function GrowScreen({ customers, streakDay, onBack }: Props) {
 
   const renderPitch = () => (
     <FadeSlideIn index={0} key={`pitch-${customer.customer_id}`}>
-      <GrowPosterImage
-        loading={templateLoading}
-        error={templateError}
-        dataBase64={activeTemplate?.posterImage?.dataBase64}
-        mimeType={activeTemplate?.posterImage?.mimeType}
-        fallback={
-          <HealthReportPoster
-            customerName={customer.name}
-            motorDaysLeft={customer.renewsInDays}
-            protectionScore={customer.protection_intelligence_score}
-          />
-        }
+      <HealthReportPoster
+        customerName={customer.name}
+        motorDaysLeft={customer.renewsInDays}
+        protectionScore={customer.protection_intelligence_score}
       />
       <View style={styles.pitchHeader}>
         <View style={styles.pitchBadge}>
