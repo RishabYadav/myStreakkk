@@ -11,6 +11,12 @@ interface Props {
   width?: number;
   subtitle?: React.ReactNode;
   scoreColor?: string;
+  interactive?: boolean;
+  tierLabel?: string;
+  tierColor?: string;
+  tierBg?: string;
+  showOutOf100?: boolean;
+  scoreFirst?: boolean;
 }
 
 const GRADIENT = [
@@ -79,6 +85,12 @@ export default function ScoreMeter({
   width = 300,
   subtitle,
   scoreColor = '#1E3A8A',
+  interactive = true,
+  tierLabel,
+  tierColor,
+  tierBg,
+  showOutOf100 = false,
+  scoreFirst = false,
 }: Props) {
   const gradId = useId().replace(/:/g, '');
   const trackStroke = 20;
@@ -171,7 +183,17 @@ export default function ScoreMeter({
   );
 
   const arcPath = useMemo(() => describeArc(cx, cy, radius, Math.PI, 0), [cx, cy, radius]);
-  const tier = useMemo(() => scoreTier(displayScore), [displayScore]);
+  const tier = useMemo(() => {
+    const base = scoreTier(displayScore);
+    if (tierLabel) {
+      return {
+        label: tierLabel,
+        color: tierColor ?? base.color,
+        bg: tierBg ?? base.bg,
+      };
+    }
+    return base;
+  }, [displayScore, tierLabel, tierColor, tierBg]);
   const arrow = useMemo(() => arrowPoints(cx, cy, radius, pointerAngle), [cx, cy, radius, pointerAngle]);
   const arrowBase = useMemo(() => polar(cx, cy, radius, pointerAngle), [cx, cy, radius, pointerAngle]);
 
@@ -189,12 +211,15 @@ export default function ScoreMeter({
   const leftEnd = polar(cx, cy, radius, Math.PI);
   const rightEnd = polar(cx, cy, radius, 0);
   const innerScoreTop = cy - radius * 0.62;
-  const belowArcTop = svgHeight + 14;
-  const gaugeHeight = belowArcTop + 44;
+  const belowArcTop = svgHeight + (scoreFirst ? 22 : 14);
+  const gaugeHeight = belowArcTop + (scoreFirst ? 52 : 44);
 
   return (
     <View style={[styles.wrap, { width, height: gaugeHeight }]}>
-      <View style={[styles.arcZone, { height: svgHeight }]} {...panResponder.panHandlers}>
+      <View
+        style={[styles.arcZone, { height: svgHeight }]}
+        {...(interactive ? panResponder.panHandlers : {})}
+      >
         <Svg width={width} height={svgHeight}>
           <Defs>
             <LinearGradient id={gradId} x1="0%" y1="0%" x2="100%" y2="0%">
@@ -249,17 +274,34 @@ export default function ScoreMeter({
         <Text style={[styles.endLabel, { left: rightEnd.x - 14, top: rightEnd.y + 6 }]}>{max}</Text>
 
         <View style={[styles.innerScore, { top: innerScoreTop }]} pointerEvents="none">
-          <View style={[styles.tierPill, { backgroundColor: tier.bg }]}>
-            <View style={[styles.tierDot, { backgroundColor: tier.color }]} />
-            <Text style={[styles.tierText, { color: tier.color }]}>{tier.label}</Text>
-          </View>
-          <Text style={[styles.score, { color: scoreColor }]}>{displayScore}</Text>
+          {scoreFirst ? (
+            <>
+              <Text style={[styles.score, { color: scoreColor }]}>{displayScore}</Text>
+              {showOutOf100 ? <Text style={styles.outOf}>out of 100</Text> : null}
+              <View style={[styles.tierPill, { backgroundColor: tier.bg, marginTop: 4, marginBottom: 2 }]}>
+                <View style={[styles.tierDot, { backgroundColor: tier.color }]} />
+                <Text style={[styles.tierText, { color: tier.color }]}>{tier.label}</Text>
+              </View>
+            </>
+          ) : (
+            <>
+              <View style={[styles.tierPill, { backgroundColor: tier.bg }]}>
+                <View style={[styles.tierDot, { backgroundColor: tier.color }]} />
+                <Text style={[styles.tierText, { color: tier.color }]}>{tier.label}</Text>
+              </View>
+              <Text style={[styles.score, { color: scoreColor }]}>{displayScore}</Text>
+            </>
+          )}
         </View>
       </View>
 
       <View style={[styles.belowArc, { top: belowArcTop }]} pointerEvents="none">
-        {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
-        {dragging ? <Text style={styles.dragHint}>Release to set back to {score}</Text> : null}
+        {subtitle ? (
+          <Text style={[styles.subtitle, scoreFirst && styles.subtitlePortal]}>{subtitle}</Text>
+        ) : null}
+        {dragging && interactive ? (
+          <Text style={styles.dragHint}>Release to set back to {score}</Text>
+        ) : null}
       </View>
     </View>
   );
@@ -321,6 +363,12 @@ const styles = StyleSheet.create({
     lineHeight: 56,
     letterSpacing: -1,
   },
+  outOf: {
+    fontFamily: fonts.body,
+    fontSize: 11,
+    color: '#64748B',
+    marginTop: -2,
+  },
   subtitle: {
     fontFamily: fonts.body,
     fontSize: 12,
@@ -328,6 +376,9 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 18,
     maxWidth: 270,
+  },
+  subtitlePortal: {
+    marginTop: 6,
   },
   dragHint: {
     fontFamily: fonts.body,
