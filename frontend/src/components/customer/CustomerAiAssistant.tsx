@@ -182,6 +182,7 @@ export default function CustomerAiAssistant({ customer, bottomOffset = 64 }: Pro
           customer_name: customer.name,
           message: trimmed,
           history,
+          caller_role: 'customer',
         });
 
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);

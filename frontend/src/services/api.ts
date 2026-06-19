@@ -35,11 +35,35 @@ export interface CustomerAiChatRequest {
   customer_name?: string;
   message: string;
   history?: AiChatTurn[];
+  caller_role?: 'customer' | 'partner';
 }
 
 export interface CustomerAiChatResponse {
   reply: string;
   suggestions?: string[];
+}
+
+// ─── Session management ───────────────────────────────────────
+// We keep a sessionId per customer so conversation context persists.
+const sessionCache: Record<string, string> = {};
+
+async function getOrCreateSession(customerId: string): Promise<string | null> {
+  if (sessionCache[customerId]) return sessionCache[customerId];
+
+  try {
+    const res = await fetch(`${API_BASE}/api/v1/ai/chat/start/${customerId}`, {
+      method: 'POST',
+    });
+    if (!res.ok) return null;
+    const json = await res.json();
+    if (json.success && json.data?.session_id) {
+      sessionCache[customerId] = json.data.session_id;
+      return json.data.session_id;
+    }
+  } catch {
+    // backend unavailable
+  }
+  return null;
 }
 
 function mockCustomerAiReply(req: CustomerAiChatRequest): CustomerAiChatResponse {
@@ -72,28 +96,53 @@ function mockCustomerAiReply(req: CustomerAiChatRequest): CustomerAiChatResponse
   }
 
   return {
-    reply: `I understand you're asking about "${req.message.trim()}". Once your backend is connected, I'll pull live policy data for a precise answer. For now: focus on health + term gaps — they're the fastest way to reduce savings exposure.`,
+    reply: `I understand you're asking about "${req.message.trim()}". Focus on health + term gaps — they're the fastest way to reduce savings exposure.`,
     suggestions: ['Summarize my risks', 'Health plan options', 'Contact advisor'],
   };
 }
 
-/** POST /api/v1/customer/ai-chat — falls back to mock when API is unavailable. */
+/**
+ * Send a message to the Protection Coach AI.
+ * Uses the real backend session-based chat when available, falls back to mock.
+ * 
+ * @param payload.caller_role - 'customer' (default) or 'partner' for advisor context
+ */
 export async function postCustomerAiChat(
   payload: CustomerAiChatRequest
 ): Promise<CustomerAiChatResponse> {
-  try {
-    const res = await fetch(`${API_BASE}/api/v1/customer/ai-chat`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
-    if (res.ok) {
-      const data = (await res.json()) as CustomerAiChatResponse;
-      if (data.reply) return data;
+  const callerRole = payload.caller_role || 'customer';
+
+  // Try to get/create a session with the backend
+  const sessionId = await getOrCreateSession(payload.customer_id);
+
+  if (sessionId) {
+    try {
+      const res = await fetch(`${API_BASE}/api/v1/ai/chat/message`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          session_id: sessionId,
+          customer_id: payload.customer_id,
+          message: payload.message,
+          caller_role: callerRole,
+        }),
+      });
+
+      if (res.ok) {
+        const json = await res.json();
+        if (json.success && json.data?.content) {
+          return {
+            reply: json.data.content,
+            suggestions: json.data.suggestions || [],
+          };
+        }
+      }
+    } catch {
+      // Backend call failed — fall through to mock
     }
-  } catch {
-    // use mock until backend is wired
   }
+
+  // Fallback to mock
   await new Promise((r) => setTimeout(r, 900));
   return mockCustomerAiReply(payload);
 }

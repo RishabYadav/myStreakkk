@@ -11,8 +11,8 @@ export async function generateResponse(prompt: string, context?: string): Promis
     model: env.GEMINI_MODEL,
     contents: fullPrompt,
     config: {
-      temperature: 0.4,
-      maxOutputTokens: 1200,
+      temperature: 0.8,
+      maxOutputTokens: 800,
       httpOptions: { timeout: env.GEMINI_TIMEOUT_MS },
     },
   });
