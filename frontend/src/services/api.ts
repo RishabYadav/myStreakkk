@@ -1,5 +1,5 @@
 /** Swap API_BASE to your FastAPI host on the local network at integration time. */
-const API_BASE = process.env.EXPO_PUBLIC_API_BASE ?? 'http://172.20.10.4';
+const API_BASE = process.env.EXPO_PUBLIC_API_BASE ?? 'http://localhost:3000';
 
 export type DemoEventType = 'BOOKING_EVENT' | 'QUESTIONNAIRE_EVENT';
 
