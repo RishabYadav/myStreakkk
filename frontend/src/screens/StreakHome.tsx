@@ -17,7 +17,6 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Feather } from '@expo/vector-icons';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { colors, fonts, shadows, radius, space, type as typeScale, touch } from '../theme';
 import { AgentState, AiSlide, MissionItem } from '../types';
@@ -25,6 +24,7 @@ import { AI_SLIDES, ACTIVE_MISSIONS, FALLBACK_MISSIONS } from '../mockData';
 import { formatCountdown } from '../utils';
 import { getTimeGreeting } from '../utils/timeGreeting';
 import RewardsDesk from '../components/streak/RewardsDesk';
+import PartnerScreenHeader from '../components/partner/PartnerScreenHeader';
 import Toast from '../components/ui/Toast';
 import PressableScale from '../components/ui/PressableScale';
 import Button from '../components/ui/Button';
@@ -218,7 +218,6 @@ export default function StreakHome({
   dataLoading,
   onRefreshData,
 }: Props) {
-  const insets = useSafeAreaInsets();
   const timeGreeting = useMemo(() => getTimeGreeting(), []);
   const insightSlides = proactiveInsights?.length ? proactiveInsights : AI_SLIDES;
   const [timer, setTimer] = useState(81574);
@@ -340,28 +339,12 @@ export default function StreakHome({
           <RefreshControl refreshing={refreshing || !!dataLoading} onRefresh={handleRefresh} tintColor={colors.brandBlue} />
         }
       >
-        <LinearGradient colors={[...colors.partner.hero]} style={styles.hero}>
-          <BreatheView style={styles.heroGlow} duration={3200} min={0.25} max={0.85} />
-
-          <View style={[styles.heroTopRow, { paddingTop: insets.top + space[1] }]}>
-            <Pressable
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                onBack();
-              }}
-              style={styles.backBtn}
-              hitSlop={8}
-              accessibilityRole="button"
-              accessibilityLabel="Back to role selection"
-            >
-              <Feather name="chevron-left" size={24} color="rgba(255,255,255,0.92)" />
-            </Pressable>
-
-            <View style={styles.heroIdentity}>
-              <Text style={styles.greeting}>{timeGreeting},</Text>
-              <Text style={styles.agentName}>{agent.name}</Text>
-            </View>
-
+        <PartnerScreenHeader
+          onBack={onBack}
+          kicker={`${timeGreeting},`}
+          title={agent.name}
+          subtitle="Protect your streak with today's missions."
+          trailing={
             <Pressable
               onPress={() => showToast('Earn coins by finishing your daily missions to protect your streak!')}
               style={styles.coinPill}
@@ -374,8 +357,8 @@ export default function StreakHome({
                 textStyle={styles.coinText}
               />
             </Pressable>
-          </View>
-
+          }
+        >
           <Pressable onLongPress={handleStreakLongPress} delayLongPress={800}>
             <View style={styles.streakRow}>
               <FloatView distance={4} duration={1800}>
@@ -427,7 +410,7 @@ export default function StreakHome({
               })}
             </View>
           </View>
-        </LinearGradient>
+        </PartnerScreenHeader>
 
         <View style={styles.body}>
           <LinearGradient colors={[colors.royalDeep, colors.royalMid, colors.royalDark]} style={styles.eventCard}>
@@ -611,46 +594,6 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.surface.canvas },
   scroll: { flex: 1 },
   content: { paddingBottom: space[11] },
-  hero: {
-    paddingHorizontal: space[4],
-    paddingBottom: space[4],
-    borderBottomLeftRadius: radius.xl,
-    borderBottomRightRadius: radius.xl,
-    overflow: 'hidden',
-  },
-  heroGlow: {
-    position: 'absolute',
-    top: -40,
-    left: 0,
-    right: 0,
-    height: 120,
-    backgroundColor: 'rgba(255,255,255,0.06)',
-  },
-  heroTopRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: space[2],
-    gap: space[2],
-  },
-  backBtn: {
-    width: 36,
-    height: 36,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginLeft: -space[1],
-  },
-  heroIdentity: {
-    flex: 1,
-    minWidth: 0,
-  },
-  greeting: { ...typeScale.label, color: colors.text.inverseMuted, fontSize: 11 },
-  agentName: {
-    fontFamily: fonts.headingExtra,
-    fontSize: 20,
-    color: colors.text.inverse,
-    letterSpacing: -0.4,
-    marginTop: 2,
-  },
   coinPill: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -661,7 +604,7 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   },
   coinText: { fontFamily: fonts.headingExtra, fontSize: typeScale.label.fontSize, color: colors.goldLight },
-  streakRow: { flexDirection: 'row', alignItems: 'center', gap: space[2], marginBottom: space[2] },
+  streakRow: { flexDirection: 'row', alignItems: 'center', gap: space[2], marginTop: space[3], marginBottom: space[2] },
   flame: { fontSize: 32 },
   streakNum: { fontFamily: fonts.headingExtra, fontSize: 42, color: colors.text.inverse, letterSpacing: -1 },
   streakLabel: { ...typeScale.label, color: colors.text.inverseMuted, fontSize: 10 },
