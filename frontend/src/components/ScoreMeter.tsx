@@ -87,7 +87,6 @@ export default function ScoreMeter({
   const cx = width / 2;
   const cy = radius + 18;
   const svgHeight = cy + 14;
-  const gaugeHeight = svgHeight + 88;
 
   const [displayScore, setDisplayScore] = useState(score);
   const [pointerAngle, setPointerAngle] = useState(() => scoreToAngle(score, min, max));
@@ -189,6 +188,9 @@ export default function ScoreMeter({
 
   const leftEnd = polar(cx, cy, radius, Math.PI);
   const rightEnd = polar(cx, cy, radius, 0);
+  const innerScoreTop = cy - radius * 0.62;
+  const belowArcTop = svgHeight + 14;
+  const gaugeHeight = belowArcTop + 44;
 
   return (
     <View style={[styles.wrap, { width, height: gaugeHeight }]}>
@@ -245,14 +247,17 @@ export default function ScoreMeter({
 
         <Text style={[styles.endLabel, { left: leftEnd.x - 14, top: leftEnd.y + 6 }]}>{min}</Text>
         <Text style={[styles.endLabel, { left: rightEnd.x - 14, top: rightEnd.y + 6 }]}>{max}</Text>
+
+        <View style={[styles.innerScore, { top: innerScoreTop }]} pointerEvents="none">
+          <View style={[styles.tierPill, { backgroundColor: tier.bg }]}>
+            <View style={[styles.tierDot, { backgroundColor: tier.color }]} />
+            <Text style={[styles.tierText, { color: tier.color }]}>{tier.label}</Text>
+          </View>
+          <Text style={[styles.score, { color: scoreColor }]}>{displayScore}</Text>
+        </View>
       </View>
 
-      <View style={styles.scoreZone} pointerEvents="none">
-        <View style={[styles.tierPill, { backgroundColor: tier.bg }]}>
-          <View style={[styles.tierDot, { backgroundColor: tier.color }]} />
-          <Text style={[styles.tierText, { color: tier.color }]}>{tier.label}</Text>
-        </View>
-        <Text style={[styles.score, { color: scoreColor }]}>{displayScore}</Text>
+      <View style={[styles.belowArc, { top: belowArcTop }]} pointerEvents="none">
         {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
         {dragging ? <Text style={styles.dragHint}>Release to set back to {score}</Text> : null}
       </View>
@@ -278,11 +283,16 @@ const styles = StyleSheet.create({
     width: 28,
     textAlign: 'center',
   },
-  scoreZone: {
+  innerScore: {
     position: 'absolute',
     left: 0,
     right: 0,
-    bottom: 0,
+    alignItems: 'center',
+  },
+  belowArc: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
     alignItems: 'center',
     paddingHorizontal: 16,
   },
@@ -316,7 +326,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#64748B',
     textAlign: 'center',
-    marginTop: 4,
     lineHeight: 18,
     maxWidth: 270,
   },
