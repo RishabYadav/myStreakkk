@@ -120,6 +120,7 @@ function buildAnjaliCustomer(): Customer {
     why: PARTNER_INTELLIGENCE.customers_ranked[0].why ?? [],
     whyOpportunity:
       'Anjali holds active PB-issued Motor and Life policies. However, she has zero health coverage with PBPartners. With her Motor policy renewing in 9 days, she has peak touchpoint affinity.',
+    customerTip: 'Your family depends on your income, but you have no health cover. Adding a family floater now protects everyone and could save you 15% with a combo bundle.',
     score_breakdown: Object.entries(bd).map(([key, val]) => ({
       key,
       name: BREAKDOWN_LABELS[key] ?? key,
@@ -160,6 +161,7 @@ function buildOtherCustomer(
     renewsInDays: 45,
     why: [],
     whyOpportunity: `${name} has protection gaps worth reviewing with your AI coach.`,
+    customerTip: 'Maintain verified covers to keep your protection index strong.',
     score_breakdown: [
       { key: 'coverage_adequacy', name: 'Coverage Adequacy', score: Math.round(pis * 0.3), max: 30 },
       { key: 'life_stage_readiness', name: 'Life Stage Readiness', score: 8, max: 15 },

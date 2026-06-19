@@ -5,6 +5,7 @@ import { calculateOpportunityScore } from './engines/opportunity-score.engine';
 import { getRecommendations as getRecsEngine } from './recommendations.engine';
 import { runSimulation as runSimEngine } from './engines/risk-simulation.engine';
 import { emitEvent } from '../events/event-bus';
+import { getInsights, getCachedInsights } from './insights-generator';
 
 /**
  * GET /api/v1/customer/:customerId/protection
@@ -167,35 +168,112 @@ export async function handleCoverageEvent(req: Request, res: Response, next: Nex
 
 /**
  * GET /api/v1/partner/:partnerId/customers-ranked
- * Returns all customers ranked by OS descending with top opportunity flagged
+ * Returns all customers ranked by OS descending with full UI-ready data.
+ * Use partnerId = "all" to fetch every customer (single-partner demo mode).
  */
 export async function getCustomersRanked(req: Request, res: Response, next: NextFunction) {
   try {
     const partnerId = req.params.partnerId as string;
 
-    // Get all customers for this partner
-    const customersResult = await pool.query(
-      `SELECT * FROM customers WHERE partner_id = $1 ORDER BY created_at`,
-      [partnerId]
-    );
+    // "all" bypasses partner filter for the single-partner demo
+    const customersResult = partnerId === 'all'
+      ? await pool.query(`SELECT * FROM customers ORDER BY created_at`)
+      : await pool.query(
+          `SELECT * FROM customers WHERE partner_id = $1 ORDER BY created_at`,
+          [partnerId]
+        );
 
     if (customersResult.rows.length === 0) {
       res.json({ success: true, data: { customers_ranked: [], top_opportunity: null } });
       return;
     }
 
-    // Calculate scores for each customer
+    // Calculate scores and build full UI payload for each customer
     const ranked: any[] = [];
     for (const customer of customersResult.rows) {
       const pis = await calculateProtectionScore(customer.id);
       const os = await calculateOpportunityScore(customer.id);
 
+      // Gap summary one-liner
+      const gaps: string[] = [];
+      if (!customer.health_cover) gaps.push('Health gap');
+      if (!customer.term_cover) gaps.push('Term gap');
+      if (!customer.life_cover) gaps.push('Life gap');
+      if (customer.renewal_due_days != null && customer.renewal_due_days < 30) {
+        gaps.push(`Renews in ${customer.renewal_due_days} days`);
+      }
+      const gapSummary = gaps.length > 0 ? gaps.join(' · ') : 'All standard covers active';
+
+      // Why reasons list
+      const why: string[] = [];
+      if (customer.renewal_due_days != null && customer.renewal_due_days < 30)
+        why.push(`Renewal due in ${customer.renewal_due_days} days`);
+      if (!customer.health_cover && (customer.dependents || 0) >= 1)
+        why.push(`Health protection missing with ${customer.dependents} dependents`);
+      if (customer.single_earner)
+        why.push('Sole earning member');
+      if (customer.home_loan)
+        why.push('Home loan outstanding');
+      if (os.opportunity_score >= 70)
+        why.push('High conversion likelihood for this profile');
+
+      // whyOpportunity prose
+      const coveredProducts: string[] = [];
+      if (customer.motor_cover) coveredProducts.push('Motor');
+      if (customer.life_cover) coveredProducts.push('Life');
+      if (customer.health_cover) coveredProducts.push('Health');
+      if (customer.term_cover) coveredProducts.push('Term');
+      const missingProducts: string[] = [];
+      if (!customer.health_cover) missingProducts.push('health');
+      if (!customer.term_cover) missingProducts.push('term');
+      if (!customer.life_cover) missingProducts.push('life');
+
+      let whyOpportunity: string;
+      // Prefer AI-generated whyOpportunity from cache
+      const cachedInsights = await getCachedInsights(customer.id);
+      if (cachedInsights?.why_opportunity) {
+        whyOpportunity = cachedInsights.why_opportunity;
+      } else if (missingProducts.length === 0) {
+        whyOpportunity = `${customer.first_name} has comprehensive coverage. Focus on add-ons and retention.`;
+      } else {
+        whyOpportunity = `${customer.first_name} holds active PB-issued ${coveredProducts.join(' and ')} policies. However, ${missingProducts.join(' and ')} coverage is missing.`;
+        if (customer.renewal_due_days != null && customer.renewal_due_days < 30) {
+          whyOpportunity += ` With a policy renewing in ${customer.renewal_due_days} days, there's peak touchpoint affinity.`;
+        }
+      }
+
+      // Score breakdown array (matches frontend ScoreDimension[])
+      const scoreBreakdown = Object.entries(pis.score_breakdown).map(([key, val]: [string, any]) => ({
+        key,
+        name: key.split('_').map((w: string) => w.charAt(0).toUpperCase() + w.slice(1)).join(' '),
+        score: val.score,
+        max: val.max,
+      }));
+
+      // Coverage array (matches frontend CoverageRow[])
+      const coverageArray = [
+        { id: 'motor', name: 'Motor', covered: !!customer.motor_cover, source: customer.coverage_source?.motor || null, icon: '🚗' },
+        { id: 'life', name: 'Life', covered: !!customer.life_cover, source: customer.coverage_source?.life || null, icon: '🧬' },
+        { id: 'health', name: 'Health', covered: !!customer.health_cover, source: customer.coverage_source?.health || null, icon: '🏥' },
+        { id: 'term', name: 'Term', covered: !!customer.term_cover, source: customer.coverage_source?.term || null, icon: '📄' },
+      ];
+
       ranked.push({
         customer_id: customer.id,
         name: `${customer.first_name} ${customer.last_name}`,
+        initials: `${customer.first_name[0]}${customer.last_name[0]}`.toUpperCase(),
         protection_intelligence_score: pis.protection_intelligence_score,
         opportunity_score: os.opportunity_score,
         opportunity_breakdown: os.opportunity_breakdown,
+        gapSummary,
+        renewsInDays: customer.renewal_due_days ?? 999,
+        why,
+        whyOpportunity,
+        customerTip: cachedInsights?.customer_tip || '',
+        score_breakdown: scoreBreakdown,
+        coverage: coverageArray,
+        weak_spots: pis.weak_spots,
+        top_gap: pis.top_gap,
       });
     }
 
@@ -207,6 +285,94 @@ export async function getCustomersRanked(req: Request, res: Response, next: Next
       data: {
         customers_ranked: ranked,
         top_opportunity: ranked[0]?.customer_id || null,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * GET /api/v1/customer/:customerId/full-profile
+ * Returns everything the CustomerFile UI needs in a single call:
+ * PIS + OS + coverage + AI-generated recommendations & talking points
+ */
+export async function getCustomerFullProfile(req: Request, res: Response, next: NextFunction) {
+  try {
+    const customerId = req.params.customerId as string;
+
+    const customer = (await pool.query(`SELECT * FROM customers WHERE id = $1`, [customerId])).rows[0];
+    if (!customer) {
+      res.status(404).json({ success: false, error: 'Customer not found' });
+      return;
+    }
+
+    const [pis, os, insights] = await Promise.all([
+      calculateProtectionScore(customerId),
+      calculateOpportunityScore(customerId),
+      getInsights(customerId),
+    ]);
+
+    // Build gap summary (rule-based, instant)
+    const gaps: string[] = [];
+    if (!customer.health_cover) gaps.push('Health gap');
+    if (!customer.term_cover) gaps.push('Term gap');
+    if (!customer.life_cover) gaps.push('Life gap');
+    if (customer.renewal_due_days != null && customer.renewal_due_days < 30) {
+      gaps.push(`Renews in ${customer.renewal_due_days} days`);
+    }
+    const gapSummary = gaps.length > 0 ? gaps.join(' · ') : 'All standard covers active';
+
+    // Why reasons (rule-based, instant)
+    const why: string[] = [];
+    if (customer.renewal_due_days != null && customer.renewal_due_days < 30)
+      why.push(`Renewal due in ${customer.renewal_due_days} days`);
+    if (!customer.health_cover && (customer.dependents || 0) >= 1)
+      why.push(`Health protection missing with ${customer.dependents} dependents`);
+    if (customer.single_earner)
+      why.push('Sole earning member');
+    if (customer.home_loan)
+      why.push('Home loan outstanding');
+    if (os.opportunity_score >= 70)
+      why.push('High conversion likelihood for this profile');
+
+    // Score breakdown array
+    const scoreBreakdown = Object.entries(pis.score_breakdown).map(([key, val]: [string, any]) => ({
+      key,
+      name: key.split('_').map((w: string) => w.charAt(0).toUpperCase() + w.slice(1)).join(' '),
+      score: val.score,
+      max: val.max,
+    }));
+
+    // Coverage array
+    const coverageArray = [
+      { id: 'motor', name: 'Motor', covered: !!customer.motor_cover, source: customer.coverage_source?.motor || null, icon: '🚗' },
+      { id: 'life', name: 'Life', covered: !!customer.life_cover, source: customer.coverage_source?.life || null, icon: '🧬' },
+      { id: 'health', name: 'Health', covered: !!customer.health_cover, source: customer.coverage_source?.health || null, icon: '🏥' },
+      { id: 'term', name: 'Term', covered: !!customer.term_cover, source: customer.coverage_source?.term || null, icon: '📄' },
+    ];
+
+    res.json({
+      success: true,
+      data: {
+        customer_id: customer.id,
+        name: `${customer.first_name} ${customer.last_name}`,
+        initials: `${customer.first_name[0]}${customer.last_name[0]}`.toUpperCase(),
+        protection_intelligence_score: pis.protection_intelligence_score,
+        opportunity_score: os.opportunity_score,
+        opportunity_breakdown: os.opportunity_breakdown,
+        gapSummary,
+        renewsInDays: customer.renewal_due_days ?? 999,
+        why,
+        whyOpportunity: insights.why_opportunity,
+        customerTip: insights.customer_tip,
+        score_breakdown: scoreBreakdown,
+        coverage: coverageArray,
+        weak_spots: pis.weak_spots,
+        top_gap: pis.top_gap,
+        recommendations: insights.recommendations,
+        talking_points: insights.talking_points,
+        lesson_recommendations: insights.lesson_recommendations,
       },
     });
   } catch (error) {
@@ -274,6 +440,34 @@ export async function getSimulationHistory(req: Request, res: Response, next: Ne
       [customerId]
     );
     res.json({ success: true, data: result.rows });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * POST /api/v1/customer/:customerId/regenerate-insights
+ * Manually triggers AI insight regeneration for a customer.
+ * Useful after seed, bulk updates, or when insights feel stale.
+ */
+export async function regenerateInsights(req: Request, res: Response, next: NextFunction) {
+  try {
+    const customerId = req.params.customerId as string;
+
+    const customer = (await pool.query(`SELECT id FROM customers WHERE id = $1`, [customerId])).rows[0];
+    if (!customer) {
+      res.status(404).json({ success: false, error: 'Customer not found' });
+      return;
+    }
+
+    const { generateAndCacheInsights } = await import('./insights-generator');
+    const insights = await generateAndCacheInsights(customerId, 'MANUAL_TRIGGER');
+
+    res.json({
+      success: true,
+      data: insights,
+      message: 'AI insights regenerated successfully',
+    });
   } catch (error) {
     next(error);
   }

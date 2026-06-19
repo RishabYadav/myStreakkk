@@ -26,6 +26,7 @@ export interface Customer {
   renewsInDays: number;
   why: string[];
   whyOpportunity: string;
+  customerTip: string;
   score_breakdown: ScoreDimension[];
   coverage: CoverageRow[];
   weak_spots: string[];

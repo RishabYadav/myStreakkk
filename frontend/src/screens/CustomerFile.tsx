@@ -10,8 +10,16 @@ import CoverageSourceTag from '../components/CoverageSourceTag';
 import BackButton from '../components/ui/BackButton';
 import PressableScale from '../components/ui/PressableScale';
 import SectionHeader from '../components/ui/SectionHeader';
+import { Skeleton } from '../components/ui/Skeleton';
 import { AnimatedProgressBar, BreatheView, FadeSlideIn, FloatView, PulseScale, ShimmerBand } from '../components/ui/motion';
 import { CADENCE_AI } from '../mockData';
+
+interface LessonItem {
+  priority: boolean;
+  icon: string;
+  title: string;
+  body: string;
+}
 
 interface Props {
   customer: Customer;
@@ -20,6 +28,37 @@ interface Props {
   onBack: () => void;
   onOpenQuestionnaire: () => void;
   onOpenExpansion: () => void;
+  talkingPoints?: string[];
+  lessonRecommendations?: LessonItem[];
+  loading?: boolean;
+}
+
+function CustomerFileSkeleton({ onBack }: { onBack: () => void }) {
+  return (
+    <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <View style={styles.topBar}>
+        <BackButton onPress={onBack} />
+        <Skeleton width={140} height={20} />
+        <View style={styles.topSpacer} />
+      </View>
+      <View style={{ marginHorizontal: space[4], borderRadius: radius.xl, overflow: 'hidden', marginBottom: space[4] }}>
+        <Skeleton height={220} style={{ borderRadius: radius.xl }} />
+      </View>
+      <View style={{ marginHorizontal: space[4], gap: space[3] }}>
+        <Skeleton height={160} style={{ borderRadius: radius.lg }} />
+        <Skeleton height={80} style={{ borderRadius: radius.lg }} />
+        <Skeleton height={100} style={{ borderRadius: radius.lg }} />
+        <View style={{ gap: space[2] }}>
+          <Skeleton height={64} style={{ borderRadius: radius.md }} />
+          <Skeleton height={64} style={{ borderRadius: radius.md }} />
+          <Skeleton height={64} style={{ borderRadius: radius.md }} />
+          <Skeleton height={64} style={{ borderRadius: radius.md }} />
+        </View>
+        <Skeleton height={120} style={{ borderRadius: radius.lg }} />
+        <Skeleton height={90} style={{ borderRadius: radius.lg }} />
+      </View>
+    </ScrollView>
+  );
 }
 
 export default function CustomerFile({
@@ -29,10 +68,21 @@ export default function CustomerFile({
   onBack,
   onOpenQuestionnaire,
   onOpenExpansion,
+  talkingPoints,
+  lessonRecommendations,
+  loading,
 }: Props) {
   const insets = useSafeAreaInsets();
   const score = customer.protection_intelligence_score;
   const firstName = customer.name.split(' ')[0];
+
+  if (loading) {
+    return <CustomerFileSkeleton onBack={onBack} />;
+  }
+
+  // Use API-provided data or fall back to mock
+  const lessons = lessonRecommendations ?? CADENCE_AI.lesson_recommendations;
+  const talks = talkingPoints ?? CADENCE_AI.talking_points;
 
   const deltaText = useMemo(() => {
     if (score >= 84) return 'Excellent protection profile achieved!';
@@ -181,7 +231,7 @@ export default function CustomerFile({
 
       <FadeSlideIn index={5}>
       <SectionHeader title="Talking points & lessons" subtitle="Use these in your conversation" accent={colors.accent} />
-      {CADENCE_AI.lesson_recommendations.map((lesson, i) => (
+      {lessons.map((lesson, i) => (
         <View key={i} style={[styles.lessonCard, shadows.card, lesson.priority && styles.lessonPriority]}>
           {lesson.priority && <Text style={styles.priority}>PRIORITY</Text>}
           <FloatView distance={2} duration={2200} delay={i * 80}>
@@ -192,7 +242,7 @@ export default function CustomerFile({
         </View>
       ))}
 
-      {CADENCE_AI.talking_points.map((tp, i) => (
+      {talks.map((tp, i) => (
         <View key={`tp-${i}`} style={styles.talkCard}>
           <Text style={styles.talkBullet}>💬</Text>
           <Text style={styles.talkText}>{tp}</Text>
