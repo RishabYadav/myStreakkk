@@ -14,6 +14,7 @@ test('Gemini response schema omits the unsupported JSON Schema draft declaration
 test('Cadence presenter returns generated fields directly in the API data object', () => {
   const cadence = cadenceOutputSchema.parse({
     coach_tip: 'Call during the renewal window.',
+    whatsapp_message: 'Hi Anjali, your upcoming renewal is a good moment to review the health and term protection gaps affecting your family. With two dependents and a home loan, the right cover can help protect your savings and responsibilities from unexpected events. Could we schedule a quick 10-minute call today to review suitable options?',
     mission: {
       title: 'Review Anjali health cover',
       subtitle: 'Highest stored opportunity',
@@ -42,6 +43,7 @@ test('Cadence presenter returns generated fields directly in the API data object
   });
 
   assert.equal(presented.coach_tip, cadence.coach_tip);
+  assert.equal(presented.whatsapp_message, cadence.whatsapp_message);
   assert.equal('cadence' in presented, false);
 });
 

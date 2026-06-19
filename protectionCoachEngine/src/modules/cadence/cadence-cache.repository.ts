@@ -56,15 +56,24 @@ export async function saveCache(
      RETURNING input_hash, model, output, generated_at`,
     [customerId, inputHash, model, JSON.stringify(output)]
   );
-  return mapCacheRow(result.rows[0]);
+  const saved = mapCacheRow(result.rows[0]);
+  if (!saved) throw new Error('Saved Cadence cache output failed validation');
+  return saved;
 }
 
-function mapCacheRow(row: CacheRow): CadenceCacheEntry {
-  const rawOutput = typeof row.output === 'string' ? JSON.parse(row.output) : row.output;
+function mapCacheRow(row: CacheRow): CadenceCacheEntry | null {
+  let rawOutput: unknown;
+  try {
+    rawOutput = typeof row.output === 'string' ? JSON.parse(row.output) : row.output;
+  } catch {
+    return null;
+  }
+  const parsed = cadenceOutputSchema.safeParse(rawOutput);
+  if (!parsed.success) return null;
   return {
     input_hash: row.input_hash,
     model: row.model,
-    output: cadenceOutputSchema.parse(rawOutput),
+    output: parsed.data,
     generated_at: row.generated_at,
   };
 }

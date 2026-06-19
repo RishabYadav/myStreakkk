@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 export const cadenceOutputSchema = z.object({
   coach_tip: z.string().trim().min(1).max(800),
+  whatsapp_message: z.string().trim().min(1).max(1200),
   mission: z.object({
     title: z.string().trim().min(1).max(120),
     subtitle: z.string().trim().min(1).max(240),

@@ -77,4 +77,5 @@ export interface AiSlide {
   title: string;
   badge: string;
   text: string;
+  icon?: string;
 }
