@@ -49,7 +49,11 @@ export interface CadenceMission {
   tags: string[];
 }
 
-export type TabId = 'streak' | 'customers' | 'profile' | 'customer_pov';
+export type AppFlow = 'entry' | 'partner' | 'customer';
+
+export type TabId = 'streak' | 'grow' | 'customers' | 'profile';
+
+export type CustomerTabId = 'home' | 'profile';
 
 export interface MissionItem {
   id: string;

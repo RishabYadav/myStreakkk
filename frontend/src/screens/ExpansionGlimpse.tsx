@@ -8,15 +8,19 @@ import {
   TextInput,
   Modal,
   Linking,
+  LayoutAnimation,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { Feather } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { colors, fonts, shadows, radius, space, type as typeScale, touch } from '../theme';
+import { customerTheme } from '../theme/customerTheme';
 import { Customer } from '../types';
 import ScoreRing from '../components/ScoreRing';
-import PartnerCustomerToggle from '../components/PartnerCustomerToggle';
 import Toast from '../components/ui/Toast';
-import { AnimatedProgressBar, BreatheView, FadeSlideIn, FloatView, LiveDot, PulseScale, ShimmerBand, WiggleView } from '../components/ui/motion';
+import AccordionToggle from '../components/ui/AccordionToggle';
+import { AnimatedProgressBar, BreatheView, FadeSlideIn, LiveDot, PulseScale, ShimmerBand } from '../components/ui/motion';
 import CustomerAiAssistant from '../components/customer/CustomerAiAssistant';
 
 const ANJALI_ID = 'C5501';
@@ -33,8 +37,8 @@ interface Props {
   customer: Customer;
   hasBooked: boolean;
   hasEnriched: boolean;
-  viewMode: 'streak' | 'customer_pov';
-  onChangeView: (mode: 'streak' | 'customer_pov') => void;
+  previewMode?: boolean;
+  onBack?: () => void;
   fabBottomOffset?: number;
 }
 
@@ -50,95 +54,17 @@ function getTargetScore(customer: Customer, hasBooked: boolean, hasEnriched: boo
 
 type ScoreTier = 'green' | 'yellow' | 'orange' | 'red';
 
-function getScoreTheme(value: number) {
-  if (value >= 70) {
-    return {
-      tier: 'green' as ScoreTier,
-      progressFill: colors.customerGreen,
-      pillText: '#065F46',
-      pillBg: '#ECFDF5',
-      pillBorder: '#A7F3D0',
-      accent: '#6EE7B7',
-      ringColor: '#6EE7B7',
-      chipText: '#ECFDF5',
-      chipBg: 'rgba(110,231,183,0.18)',
-      chipBorder: 'rgba(110,231,183,0.45)',
-      headingColor: 'rgba(167,243,208,0.95)',
-      heroGradient: ['#064E3B', '#059669', '#047857'] as const,
-      heroGlowColor: 'rgba(255,255,255,0.08)',
-      portalLabelColor: 'rgba(167,243,208,0.9)',
-      scoreLabelColor: 'rgba(167,243,208,0.95)',
-      scoreSectionBg: 'rgba(255,255,255,0.06)',
-      scoreSectionBorder: 'rgba(110,231,183,0.25)',
-    };
-  }
-  if (value >= 50) {
-    return {
-      tier: 'yellow' as ScoreTier,
-      progressFill: '#EAB308',
-      pillText: '#713F12',
-      pillBg: '#FEF9C3',
-      pillBorder: '#FDE047',
-      accent: '#FACC15',
-      ringColor: '#EAB308',
-      chipText: '#FEFCE8',
-      chipBg: 'rgba(234, 179, 8, 0.28)',
-      chipBorder: 'rgba(253, 224, 71, 0.55)',
-      headingColor: 'rgba(254, 249, 195, 0.96)',
-      heroGradient: ['#422006', '#A16207', '#CA8A04', '#FACC15'] as const,
-      heroGlowColor: 'rgba(250, 204, 21, 0.22)',
-      portalLabelColor: 'rgba(254, 240, 138, 0.95)',
-      scoreLabelColor: 'rgba(254, 249, 195, 0.98)',
-      scoreSectionBg: 'rgba(250, 204, 21, 0.14)',
-      scoreSectionBorder: 'rgba(253, 224, 71, 0.42)',
-    };
-  }
-  if (value >= 20) {
-    return {
-      tier: 'orange' as ScoreTier,
-      progressFill: '#F97316',
-      pillText: '#7C2D12',
-      pillBg: '#FFEDD5',
-      pillBorder: '#FB923C',
-      accent: '#FB923C',
-      ringColor: '#F97316',
-      chipText: '#FFF7ED',
-      chipBg: 'rgba(234, 88, 12, 0.3)',
-      chipBorder: 'rgba(251, 146, 60, 0.58)',
-      headingColor: 'rgba(255, 237, 213, 0.96)',
-      heroGradient: ['#431407', '#9A3412', '#EA580C', '#FB923C'] as const,
-      heroGlowColor: 'rgba(251, 146, 60, 0.2)',
-      portalLabelColor: 'rgba(254, 215, 170, 0.95)',
-      scoreLabelColor: 'rgba(255, 237, 213, 0.98)',
-      scoreSectionBg: 'rgba(234, 88, 12, 0.16)',
-      scoreSectionBorder: 'rgba(249, 115, 22, 0.48)',
-    };
-  }
-  return {
-    tier: 'red' as ScoreTier,
-    progressFill: '#EF4444',
-    pillText: '#991B1B',
-    pillBg: '#FEE2E2',
-    pillBorder: '#FECACA',
-    accent: '#FCA5A5',
-    ringColor: '#EF4444',
-    chipText: '#FEE2E2',
-    chipBg: 'rgba(239,68,68,0.24)',
-    chipBorder: 'rgba(248,113,113,0.55)',
-    headingColor: 'rgba(254,226,226,0.95)',
-    heroGradient: ['#450A0A', '#991B1B', '#DC2626'] as const,
-    heroGlowColor: 'rgba(254,202,202,0.1)',
-    portalLabelColor: 'rgba(254,202,202,0.9)',
-    scoreLabelColor: 'rgba(254,226,226,0.95)',
-    scoreSectionBg: 'rgba(239,68,68,0.12)',
-    scoreSectionBorder: 'rgba(248,113,113,0.35)',
-  };
-}
+const COVERAGE_ICON: Record<string, keyof typeof Feather.glyphMap> = {
+  motor: 'truck',
+  life: 'heart',
+  health: 'activity',
+  term: 'shield',
+};
 
 const HEADER_COPY: Record<ScoreTier, { label: string; heading: string }> = {
   green: {
     label: 'Excellent Security',
-    heading: 'Premium High-Priority Risks Covered!',
+    heading: 'Premium high-priority risks covered',
   },
   yellow: {
     label: 'Fair Protection',
@@ -150,17 +76,36 @@ const HEADER_COPY: Record<ScoreTier, { label: string; heading: string }> = {
   },
   red: {
     label: 'Exposed Savings Risk',
-    heading: 'Secure missing health & term gaps urgently',
+    heading: 'Secure missing health and term gaps urgently',
   },
 };
 
 function getSafetyVerdict(score: number) {
-  const theme = getScoreTheme(score);
+  const tier: ScoreTier =
+    score >= 70 ? 'green' : score >= 50 ? 'yellow' : score >= 20 ? 'orange' : 'red';
+  const copy = HEADER_COPY[tier];
   return {
-    ...theme,
-    ...HEADER_COPY[theme.tier],
-    showShimmer: theme.tier !== 'green',
-    showRiskHint: theme.tier === 'red' || theme.tier === 'orange',
+    tier,
+    ...copy,
+    progressFill: customerTheme.progressFill,
+    progressTrack: customerTheme.progressTrack,
+    pillText: customerTheme.accentDark,
+    pillBg: customerTheme.accentSoft,
+    pillBorder: customerTheme.accentBorder,
+    accent: customerTheme.accent,
+    ringColor: customerTheme.progressFill,
+    chipText: customerTheme.accentDark,
+    chipBg: customerTheme.accentSoft,
+    chipBorder: customerTheme.accentBorder,
+    headingColor: customerTheme.textPrimary,
+    heroGradient: customerTheme.hero,
+    heroGlowColor: 'rgba(59,130,246,0.06)',
+    portalLabelColor: customerTheme.textMuted,
+    scoreLabelColor: customerTheme.textSecondary,
+    scoreSectionBg: 'rgba(255,255,255,0.88)',
+    scoreSectionBorder: customerTheme.accentBorder,
+    showShimmer: false,
+    showRiskHint: tier === 'red' || tier === 'orange',
   };
 }
 
@@ -193,10 +138,11 @@ export default function ExpansionGlimpse({
   customer,
   hasBooked,
   hasEnriched,
-  viewMode,
-  onChangeView,
+  previewMode = false,
+  onBack,
   fabBottomOffset = 64,
 }: Props) {
+  const insets = useSafeAreaInsets();
   const [externalPolicies, setExternalPolicies] = useState<ExternalPolicy[]>([
     {
       id: 'ext-p1',
@@ -213,6 +159,9 @@ export default function ExpansionGlimpse({
   const [extExpiryDate, setExtExpiryDate] = useState('');
   const [extFile, setExtFile] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  const [breakdownExpanded, setBreakdownExpanded] = useState(false);
+  const [coverageExpanded, setCoverageExpanded] = useState(false);
+  const [externalExpanded, setExternalExpanded] = useState(false);
   const dismissToast = useCallback(() => setToast(null), []);
   const showToastMsg = useCallback((msg: string) => setToast(msg), []);
   const [displayScore, setDisplayScore] = useState(customer.protection_intelligence_score);
@@ -244,7 +193,7 @@ export default function ExpansionGlimpse({
 
   const syncPolicy = () => {
     if (!extInsurer || !extSumInsured || !extExpiryDate) {
-      showToastMsg('⚠️ Please enter Insurer Name, Cover Amount, and Expiry Date!');
+      showToastMsg('Please enter Insurer Name, Cover Amount, and Expiry Date.');
       return;
     }
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -252,7 +201,7 @@ export default function ExpansionGlimpse({
       ...prev,
       { id: `ext-${Date.now()}`, insurer: extInsurer, category: extCategory, sumInsured: extSumInsured, expiryDate: extExpiryDate },
     ]);
-    showToastMsg(`🎉 ${extInsurer} Policy synced. Safety index increased!`);
+    showToastMsg(`${extInsurer} policy synced. Safety index updated.`);
     setExtInsurer('');
     setExtSumInsured('');
     setExtExpiryDate('');
@@ -282,24 +231,53 @@ export default function ExpansionGlimpse({
     return 'Exposure detected';
   };
 
+  const breakdownRows = customer.score_breakdown;
+  const visibleBreakdown = breakdownExpanded ? breakdownRows : breakdownRows.slice(0, 3);
+  const breakdownRemaining = Math.max(0, breakdownRows.length - 3);
+  const visibleCoverage = coverageExpanded ? customer.coverage : customer.coverage.slice(0, 3);
+  const coverageRemaining = Math.max(0, customer.coverage.length - 3);
+  const visibleExternal = externalExpanded ? externalPolicies : externalPolicies.slice(0, 3);
+  const externalRemaining = Math.max(0, externalPolicies.length - 3);
+
+  const toggleBreakdown = () => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setBreakdownExpanded((v) => !v);
+  };
+  const toggleCoverage = () => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setCoverageExpanded((v) => !v);
+  };
+  const toggleExternal = () => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setExternalExpanded((v) => !v);
+  };
+
   return (
     <View style={styles.root}>
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <LinearGradient colors={[...verdict.heroGradient]} style={styles.hero}>
+        <LinearGradient
+          colors={[...verdict.heroGradient]}
+          style={[styles.hero, previewMode && { paddingTop: insets.top + space[2] }]}
+        >
           <BreatheView
             style={[styles.heroGlow, { backgroundColor: verdict.heroGlowColor }]}
             duration={3000}
             min={0.2}
             max={0.7}
           />
-          <View style={styles.heroNav}>
-            <View>
+          <View style={previewMode ? styles.heroNavPreview : styles.heroNavSimple}>
+            {previewMode && onBack ? (
+              <Pressable onPress={onBack} style={styles.heroBack} hitSlop={8}>
+                <Feather name="chevron-left" size={22} color={customerTheme.textPrimary} />
+              </Pressable>
+            ) : null}
+            <View style={previewMode ? styles.heroNavCenter : undefined}>
               <Text style={[styles.portalLabel, { color: verdict.portalLabelColor }]}>
                 CUSTOMER SECURE PORTAL
               </Text>
               <Text style={styles.customerName}>{customer.name}</Text>
             </View>
-            <PartnerCustomerToggle activeMode={viewMode} onChange={onChangeView} variant="customer" />
+            {previewMode ? <View style={styles.heroNavSpacer} /> : null}
           </View>
 
           <View
@@ -340,9 +318,7 @@ export default function ExpansionGlimpse({
               </BreatheView>
               {verdict.showRiskHint && (
                 <View style={[styles.exposureHint, { borderColor: verdict.chipBorder, backgroundColor: verdict.chipBg }]}>
-                  <WiggleView angle={4} duration={2600}>
-                    <Text style={styles.exposureHintIcon}>⚠️</Text>
-                  </WiggleView>
+                  <Feather name="alert-circle" size={14} color={customerTheme.accent} />
                   <Text style={[styles.exposureHintText, { color: verdict.chipText }]}>
                     Tap coverage gaps below to improve your score
                   </Text>
@@ -354,7 +330,8 @@ export default function ExpansionGlimpse({
                 score={displayScore}
                 size={112}
                 strokeColor={verdict.ringColor}
-                trackColor="rgba(255,255,255,0.14)"
+                trackColor={customerTheme.progressTrack}
+                textColor={customerTheme.textPrimary}
               />
             </PulseScale>
           </View>
@@ -374,7 +351,7 @@ export default function ExpansionGlimpse({
                 {showExposureTip ? 'Savings Exposure Alert' : 'Your Safe Guard Pro Tip'}
               </Text>
               <View style={[styles.tipBadge, showExposureTip && styles.tipBadgeAlert]}>
-                <LiveDot color={showExposureTip ? '#FBBF24' : colors.customerGreen} size={4} />
+                <LiveDot color={showExposureTip ? customerTheme.accent : customerTheme.textMuted} size={4} />
                 <Text style={[styles.tipBadgeText, showExposureTip && styles.tipBadgeTextAlert]}>
                   {showExposureTip ? 'Action needed' : 'Smart Insight'}
                 </Text>
@@ -382,16 +359,16 @@ export default function ExpansionGlimpse({
             </View>
             <Text style={styles.tipBody}>
               {customer.customer_id === ANJALI_ID && !hasBooked
-                ? '💡 Savings Exposure Detected: Your motor policy renews in 9 days but you have zero health files registered. Linking combined health plans now saves up to 15% in combo premiums!'
+                ? 'Savings exposure detected: your motor policy renews in 9 days but you have no health coverage registered. Adding a combined health plan now can save up to 15% on combo premiums.'
                 : customer.customer_id === ANJALI_ID
-                  ? '🎉 Perfect Combo Alignment: Your Ergo Combo Family health plan with Motor coverage maximizes tax exemptions and top-tier claim settlement ratios!'
-                  : '💡 Maintain verified covers to elevate your protection index. Keep coordination active with your designated partner advisor.'}
+                  ? 'Your health and motor coverage are aligned. Keep policies verified to maintain your protection index.'
+                  : 'Maintain verified covers to elevate your protection index. Stay in touch with your designated advisor.'}
             </Text>
             {showExposureTip && (
               <View style={styles.quoteRow}>
-                <Text style={styles.quoteText} numberOfLines={1}>🎯 Combined Ergo Floater quote prepared</Text>
+                <Text style={styles.quoteText} numberOfLines={2}>Combined Ergo Floater quote prepared for review</Text>
                 <Pressable
-                  onPress={() => showToastMsg('🛒 Directing to secure Checkout payment gateway...')}
+                  onPress={() => showToastMsg('Opening secure checkout...')}
                   style={styles.buyBtnAlert}
                 >
                   <PulseScale min={0.96} max={1.05} duration={900}>
@@ -405,77 +382,67 @@ export default function ExpansionGlimpse({
 
           <FadeSlideIn index={1}>
           <View style={[styles.breakdownCard, shadows.card]}>
-            <Text style={styles.sectionLabel}>🛡️ My Safety Index Breakdown</Text>
-            {customer.score_breakdown.map((row) => {
+            <Text style={styles.sectionLabel}>My Safety Index Breakdown</Text>
+            {visibleBreakdown.map((row) => {
               const current = getBreakdownScore(customer, row.key, hasBooked, hasEnriched);
               const pct = Math.min((current / row.max) * 100, 100);
-              const rowTheme = getScoreTheme(pct);
               return (
                 <View key={row.key} style={styles.breakdownRow}>
                   <View style={styles.breakdownTop}>
                     <Text style={styles.breakdownName}>{LABEL_MAP[row.key] ?? row.name}</Text>
-                    <Text
-                      style={[
-                        styles.breakdownVal,
-                        {
-                          color: rowTheme.pillText,
-                          backgroundColor: rowTheme.pillBg,
-                          borderColor: rowTheme.pillBorder,
-                        },
-                      ]}
-                    >
-                      {current}/{row.max} Value
+                    <Text style={styles.breakdownVal}>
+                      {current}/{row.max}
                     </Text>
                   </View>
                   <AnimatedProgressBar
                     pct={pct}
-                    fillColor={rowTheme.progressFill}
-                    trackColor={colors.border.subtle}
+                    fillColor={customerTheme.progressFill}
+                    trackColor={customerTheme.progressTrack}
                     height={6}
                   />
                 </View>
               );
             })}
+            <AccordionToggle
+              expanded={breakdownExpanded}
+              onToggle={toggleBreakdown}
+              remainingCount={breakdownRemaining}
+            />
           </View>
           </FadeSlideIn>
 
           <FadeSlideIn index={2}>
           <View style={styles.coverageHeader}>
-            <Text style={styles.sectionLabel}>My Active & Unlinked Coverages</Text>
-            <Text style={styles.ssl}>🔒 SSL ENCRYPTED</Text>
+            <Text style={styles.sectionLabel}>My Active and Unlinked Coverages</Text>
+            <Text style={styles.ssl}>Secure</Text>
           </View>
-          {customer.coverage.map((row, i) => {
+          {visibleCoverage.map((row, i) => {
             const { covered, source } = getCoverageStatus(row);
-            const rowTheme = getScoreTheme(covered ? 85 : 12);
             return (
               <FadeSlideIn key={row.id} index={i + 3}>
               <View style={[styles.coverageCard, shadows.card]}>
                 <View style={styles.coverageLeft}>
-                  <FloatView distance={2} duration={2400} delay={i * 80}>
-                    <View style={[styles.coverageIcon, { borderColor: rowTheme.pillBorder, backgroundColor: rowTheme.pillBg }]}>
-                      <Text>{row.icon}</Text>
-                    </View>
-                  </FloatView>
+                  <View style={styles.coverageIcon}>
+                    <Feather name={COVERAGE_ICON[row.id] ?? 'shield'} size={16} color={customerTheme.accent} />
+                  </View>
                   <View>
                     <Text style={styles.coverageName}>{coverageLabel(row.id, row.name)}</Text>
-                    <Text style={[styles.coverageSource, !covered && { color: rowTheme.pillText }]}>
+                    <Text style={[styles.coverageSource, !covered && styles.coverageSourceGap]}>
                       {covered ? `Source: ${sourceLabel(source)}` : 'Status: Exposure detected'}
                     </Text>
                   </View>
                 </View>
                 {covered ? (
-                  <View style={[styles.coveredChip, { backgroundColor: rowTheme.pillBg, borderColor: rowTheme.pillBorder }]}>
-                    <Text style={[styles.coveredText, { color: rowTheme.pillText }]}>✓ Covered</Text>
+                  <View style={styles.coveredChip}>
+                    <Text style={styles.coveredText}>Covered</Text>
                   </View>
                 ) : (
-                  <PulseScale min={1} max={1.05} duration={1400}>
+                  <PulseScale min={1} max={1.03} duration={1400}>
                     <Pressable
-                      onPress={() => showToastMsg(row.id === 'health' ? '🌟 Opening secure booking portal...' : '📁 Launching secure PDF uploader...')}
-                      style={[styles.gapBtn, { backgroundColor: rowTheme.pillBg, borderColor: rowTheme.pillBorder }]}
+                      onPress={() => showToastMsg('Opening secure booking portal...')}
+                      style={styles.gapBtn}
                     >
-                      <Text style={[styles.gapBtnText, { color: rowTheme.pillText }]}>
-                        {row.id === 'health' ? 'Buy Now' : 'Link External'}
-                      </Text>
+                      <Text style={styles.gapBtnText}>Buy Now</Text>
                     </Pressable>
                   </PulseScale>
                 )}
@@ -483,6 +450,11 @@ export default function ExpansionGlimpse({
               </FadeSlideIn>
             );
           })}
+          <AccordionToggle
+            expanded={coverageExpanded}
+            onToggle={toggleCoverage}
+            remainingCount={coverageRemaining}
+          />
           </FadeSlideIn>
 
           <FadeSlideIn index={6}>
@@ -517,10 +489,10 @@ export default function ExpansionGlimpse({
                 <Text style={styles.inputLabel}>Expiry Date</Text>
                 <TextInput value={extExpiryDate} onChangeText={setExtExpiryDate} placeholder="YYYY-MM-DD" style={styles.input} placeholderTextColor="#94A3B8" />
                 <Pressable
-                  onPress={() => { setExtFile('policy.pdf'); showToastMsg('📂 Linked external policy document.'); }}
+                  onPress={() => { setExtFile('policy.pdf'); showToastMsg('Policy document attached.'); }}
                   style={[styles.attachBtn, extFile && styles.attachReady]}
                 >
-                  <Text style={styles.attachText}>{extFile ? '✓ Ready!' : '📎 Attach PDF'}</Text>
+                  <Text style={styles.attachText}>{extFile ? 'Document ready' : 'Attach PDF'}</Text>
                 </Pressable>
                 <Pressable onPress={syncPolicy} style={styles.syncBtn}>
                   <Text style={styles.syncText}>Sync This Policy</Text>
@@ -531,26 +503,35 @@ export default function ExpansionGlimpse({
             {externalPolicies.length === 0 ? (
               <Text style={styles.emptyExt}>No external policies added. Tap (+) to import.</Text>
             ) : (
-              externalPolicies.map((p) => (
-                <View key={p.id} style={styles.extRow}>
-                  <View style={styles.extLeft}>
-                    <View style={styles.extIcon}><Text>📄</Text></View>
-                    <View>
-                      <Text style={styles.extInsurer}>{p.insurer}</Text>
-                      <Text style={styles.extMeta}>{p.category} · SI: {p.sumInsured} · Exp: {p.expiryDate}</Text>
+              <>
+                {visibleExternal.map((p) => (
+                  <View key={p.id} style={styles.extRow}>
+                    <View style={styles.extLeft}>
+                      <View style={styles.extIcon}>
+                        <Feather name="file-text" size={16} color={customerTheme.accent} />
+                      </View>
+                      <View>
+                        <Text style={styles.extInsurer}>{p.insurer}</Text>
+                        <Text style={styles.extMeta}>{p.category} · SI: {p.sumInsured} · Exp: {p.expiryDate}</Text>
+                      </View>
                     </View>
+                    <Pressable
+                      onPress={() => {
+                        setExternalPolicies((prev) => prev.filter((x) => x.id !== p.id));
+                        showToastMsg(`Removed policy from ${p.insurer}.`);
+                      }}
+                      style={styles.deleteBtn}
+                    >
+                      <Feather name="trash-2" size={16} color={customerTheme.textMuted} />
+                    </Pressable>
                   </View>
-                  <Pressable
-                    onPress={() => {
-                      setExternalPolicies((prev) => prev.filter((x) => x.id !== p.id));
-                      showToastMsg(`🗑️ De-linked policy from ${p.insurer}.`);
-                    }}
-                    style={styles.deleteBtn}
-                  >
-                    <Text>🗑️</Text>
-                  </Pressable>
-                </View>
-              ))
+                ))}
+                <AccordionToggle
+                  expanded={externalExpanded}
+                  onToggle={toggleExternal}
+                  remainingCount={externalRemaining}
+                />
+              </>
             )}
           </View>
           </FadeSlideIn>
@@ -561,20 +542,16 @@ export default function ExpansionGlimpse({
               <View style={styles.advisorAvatar}><Text style={styles.advisorInitials}>RS</Text></View>
               <View>
                 <Text style={styles.advisorTitle}>Designated Advisor</Text>
-                <Text style={styles.advisorName}>Rahul Sharma (PB Partners)</Text>
+                <Text style={styles.advisorName}>Rahul Sharma</Text>
               </View>
             </View>
             <Pressable
               onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); Linking.openURL('tel:+91999999999'); }}
               style={styles.askBtn}
             >
-              <Text style={styles.askText}>Ask Rahul</Text>
+              <Text style={styles.askText}>Call Support</Text>
             </Pressable>
           </View>
-          </FadeSlideIn>
-
-          <FadeSlideIn index={8}>
-          <Text style={styles.vault}>🛡️ PBPartners Secure Protection Vault</Text>
           </FadeSlideIn>
         </View>
       </ScrollView>
@@ -585,7 +562,7 @@ export default function ExpansionGlimpse({
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.canvasAlt },
+  root: { flex: 1, backgroundColor: customerTheme.canvas },
   scroll: { flex: 1 },
   content: { paddingBottom: 110 },
   hero: {
@@ -605,9 +582,27 @@ const styles = StyleSheet.create({
     height: 120,
     backgroundColor: 'rgba(255,255,255,0.07)',
   },
-  heroNav: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 },
+  heroNavPreview: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 20,
+  },
+  heroNavSimple: {
+    marginBottom: 20,
+  },
+  heroNavCenter: { flex: 1, alignItems: 'center' },
+  heroNavSpacer: { width: 36 },
+  heroBack: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255,255,255,0.75)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   portalLabel: { fontFamily: fonts.headingExtra, fontSize: 8.5, letterSpacing: 1 },
-  customerName: { fontFamily: fonts.headingExtra, fontSize: 15, color: '#FFF', marginTop: 4 },
+  customerName: { fontFamily: fonts.headingExtra, fontSize: 15, color: customerTheme.textPrimary, marginTop: 4 },
   scoreSection: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -718,69 +713,79 @@ const styles = StyleSheet.create({
   breakdownVal: {
     fontFamily: fonts.bodyBold,
     fontSize: 10,
+    color: customerTheme.accentDark,
+    backgroundColor: customerTheme.accentSoft,
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 6,
-    borderWidth: 1,
   },
-  progressTrack: { height: 6, backgroundColor: '#F1F5F9', borderRadius: 3, overflow: 'hidden' },
-  progressFill: { height: '100%', backgroundColor: colors.customerGreen, borderRadius: 3 },
-  coverageHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  ssl: { fontFamily: fonts.headingExtra, fontSize: 10, color: colors.customerGreen },
+  progressTrack: { height: 6, backgroundColor: customerTheme.progressTrack, borderRadius: 3, overflow: 'hidden' },
+  progressFill: { height: '100%', backgroundColor: customerTheme.progressFill, borderRadius: 3 },
+  coverageHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: space[2] },
+  ssl: { fontFamily: fonts.bodySemi, fontSize: 10, color: customerTheme.accent },
   coverageCard: {
-    backgroundColor: colors.white, borderRadius: 16, padding: 14,
+    backgroundColor: colors.white, borderRadius: 16, padding: 14, marginBottom: space[2],
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    borderWidth: 1, borderColor: '#E2E8F0',
+    borderWidth: 1, borderColor: customerTheme.accentBorder,
   },
   coverageLeft: { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 },
-  coverageIcon: { width: 36, height: 36, borderRadius: 12, backgroundColor: '#F8FAFC', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#F1F5F9' },
-  coverageName: { fontFamily: fonts.headingExtra, fontSize: 12.5, color: colors.navy },
-  coverageSource: { fontFamily: fonts.bodyBold, fontSize: 9.5, color: '#94A3B8', marginTop: 2 },
+  coverageIcon: {
+    width: 36, height: 36, borderRadius: 12,
+    backgroundColor: customerTheme.accentSoft,
+    alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1, borderColor: customerTheme.accentBorder,
+  },
+  coverageName: { fontFamily: fonts.headingExtra, fontSize: 12.5, color: customerTheme.textPrimary },
+  coverageSource: { fontFamily: fonts.bodyBold, fontSize: 9.5, color: customerTheme.textMuted, marginTop: 2 },
+  coverageSourceGap: { color: customerTheme.accentDark },
   coveredChip: {
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 8,
     borderWidth: 1,
+    backgroundColor: customerTheme.accentSoft,
+    borderColor: customerTheme.accentBorder,
   },
-  coveredText: { fontFamily: fonts.headingExtra, fontSize: 11 },
+  coveredText: { fontFamily: fonts.headingExtra, fontSize: 11, color: customerTheme.accentDark },
   gapBtn: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
     borderRadius: 8,
     borderWidth: 1,
+    backgroundColor: customerTheme.accent,
+    borderColor: customerTheme.accent,
   },
-  gapBtnText: { fontFamily: fonts.headingExtra, fontSize: 10 },
-  externalCard: { backgroundColor: colors.white, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: '#E2E8F0' },
+  gapBtnText: { fontFamily: fonts.headingExtra, fontSize: 10, color: '#FFF' },
+  externalCard: { backgroundColor: colors.white, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: customerTheme.accentBorder },
   externalHeader: { flexDirection: 'row', gap: 12, marginBottom: 12 },
-  externalTitle: { fontFamily: fonts.headingExtra, fontSize: 10, color: colors.customerGreen, letterSpacing: 0.5 },
-  externalSub: { fontFamily: fonts.body, fontSize: 11, color: colors.body, marginTop: 4 },
-  addBtn: { width: 32, height: 32, borderRadius: 8, backgroundColor: colors.customerGreen, alignItems: 'center', justifyContent: 'center' },
+  externalTitle: { fontFamily: fonts.headingExtra, fontSize: 10, color: customerTheme.accent, letterSpacing: 0.5 },
+  externalSub: { fontFamily: fonts.body, fontSize: 11, color: customerTheme.textSecondary, marginTop: 4 },
+  addBtn: { width: 32, height: 32, borderRadius: 8, backgroundColor: customerTheme.accent, alignItems: 'center', justifyContent: 'center' },
   addBtnText: { color: '#FFF', fontSize: 18, lineHeight: 20 },
-  form: { backgroundColor: 'rgba(236,253,245,0.3)', borderRadius: 12, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: '#D1FAE5', gap: 8 },
-  formTitle: { fontFamily: fonts.headingExtra, fontSize: 11, color: colors.customerGreen, textTransform: 'uppercase' },
-  inputLabel: { fontFamily: fonts.bodyBold, fontSize: 9.5, color: colors.body, textTransform: 'uppercase' },
-  input: { backgroundColor: '#F1F5F9', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, fontFamily: fonts.body, fontSize: 11, color: colors.navy },
+  form: { backgroundColor: customerTheme.accentSoft, borderRadius: 12, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: customerTheme.accentBorder, gap: 8 },
+  formTitle: { fontFamily: fonts.headingExtra, fontSize: 11, color: customerTheme.accentDark, textTransform: 'uppercase' },
+  inputLabel: { fontFamily: fonts.bodyBold, fontSize: 9.5, color: customerTheme.textSecondary, textTransform: 'uppercase' },
+  input: { backgroundColor: '#FFF', borderWidth: 1, borderColor: customerTheme.accentBorder, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, fontFamily: fonts.body, fontSize: 11, color: customerTheme.textPrimary },
   formRow: { flexDirection: 'row', gap: 8 },
   formHalf: { flex: 1 },
-  attachBtn: { borderWidth: 1, borderColor: '#E2E8F0', borderStyle: 'dashed', borderRadius: 8, paddingVertical: 8, alignItems: 'center', backgroundColor: '#F8FAFC' },
-  attachReady: { borderColor: '#6EE7B7', backgroundColor: '#ECFDF5' },
-  attachText: { fontFamily: fonts.bodySemi, fontSize: 11, color: colors.body },
-  syncBtn: { backgroundColor: colors.customerGreen, borderRadius: 8, paddingVertical: 10, alignItems: 'center' },
+  attachBtn: { borderWidth: 1, borderColor: customerTheme.accentBorder, borderStyle: 'dashed', borderRadius: 8, paddingVertical: 8, alignItems: 'center', backgroundColor: '#FFF' },
+  attachReady: { borderColor: customerTheme.accent, backgroundColor: customerTheme.accentSoft },
+  attachText: { fontFamily: fonts.bodySemi, fontSize: 11, color: customerTheme.textSecondary },
+  syncBtn: { backgroundColor: customerTheme.accent, borderRadius: 8, paddingVertical: 10, alignItems: 'center' },
   syncText: { fontFamily: fonts.headingExtra, fontSize: 11, color: '#FFF' },
-  emptyExt: { fontFamily: fonts.body, fontSize: 11, color: '#94A3B8', textAlign: 'center', paddingVertical: 16, borderWidth: 1, borderStyle: 'dashed', borderColor: '#E2E8F0', borderRadius: 12 },
-  extRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#F8FAFC', borderRadius: 12, padding: 12, marginBottom: 8, borderWidth: 1, borderColor: '#F1F5F9' },
+  emptyExt: { fontFamily: fonts.body, fontSize: 11, color: customerTheme.textMuted, textAlign: 'center', paddingVertical: 16, borderWidth: 1, borderStyle: 'dashed', borderColor: customerTheme.accentBorder, borderRadius: 12 },
+  extRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: customerTheme.accentSoft, borderRadius: 12, padding: 12, marginBottom: 8, borderWidth: 1, borderColor: customerTheme.accentBorder },
   extLeft: { flexDirection: 'row', gap: 10, flex: 1 },
-  extIcon: { width: 34, height: 34, borderRadius: 8, backgroundColor: '#ECFDF5', alignItems: 'center', justifyContent: 'center' },
-  extInsurer: { fontFamily: fonts.headingExtra, fontSize: 12, color: colors.navy },
-  extMeta: { fontFamily: fonts.body, fontSize: 9.5, color: colors.body, marginTop: 2 },
+  extIcon: { width: 34, height: 34, borderRadius: 8, backgroundColor: '#FFF', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: customerTheme.accentBorder },
+  extInsurer: { fontFamily: fonts.headingExtra, fontSize: 12, color: customerTheme.textPrimary },
+  extMeta: { fontFamily: fonts.body, fontSize: 9.5, color: customerTheme.textSecondary, marginTop: 2 },
   deleteBtn: { padding: 6 },
-  advisorCard: { backgroundColor: colors.white, borderRadius: 16, padding: 14, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderWidth: 1, borderColor: '#E2E8F0' },
+  advisorCard: { backgroundColor: colors.white, borderRadius: 16, padding: 14, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderWidth: 1, borderColor: customerTheme.accentBorder },
   advisorLeft: { flexDirection: 'row', gap: 10, alignItems: 'center', flex: 1 },
-  advisorAvatar: { width: 36, height: 36, borderRadius: 12, backgroundColor: '#ECFDF5', alignItems: 'center', justifyContent: 'center' },
-  advisorInitials: { fontFamily: fonts.headingExtra, fontSize: 11, color: colors.customerGreen },
-  advisorTitle: { fontFamily: fonts.headingExtra, fontSize: 11, color: colors.navy },
-  advisorName: { fontFamily: fonts.body, fontSize: 9, color: colors.body, marginTop: 2 },
-  askBtn: { backgroundColor: '#ECFDF5', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, borderWidth: 1, borderColor: '#D1FAE5' },
-  askText: { fontFamily: fonts.headingExtra, fontSize: 10, color: colors.customerGreen },
-  vault: { fontFamily: fonts.headingExtra, fontSize: 9, color: '#94A3B8', textAlign: 'center', letterSpacing: 1, marginTop: 4 },
+  advisorAvatar: { width: 36, height: 36, borderRadius: 12, backgroundColor: customerTheme.accentSoft, alignItems: 'center', justifyContent: 'center' },
+  advisorInitials: { fontFamily: fonts.headingExtra, fontSize: 11, color: customerTheme.accentDark },
+  advisorTitle: { fontFamily: fonts.headingExtra, fontSize: 11, color: customerTheme.textPrimary },
+  advisorName: { fontFamily: fonts.body, fontSize: 9, color: customerTheme.textSecondary, marginTop: 2 },
+  askBtn: { backgroundColor: customerTheme.accentSoft, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, borderWidth: 1, borderColor: customerTheme.accentBorder },
+  askText: { fontFamily: fonts.headingExtra, fontSize: 10, color: customerTheme.accentDark },
 });

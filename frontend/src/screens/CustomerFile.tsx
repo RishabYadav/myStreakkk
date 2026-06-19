@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { View, Text, ScrollView, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, fonts, shadows, radius, space, type as typeScale, touch } from '../theme';
 import Button from '../components/ui/Button';
 import { Customer } from '../types';
@@ -71,6 +72,7 @@ export default function CustomerFile({
   lessonRecommendations,
   loading,
 }: Props) {
+  const insets = useSafeAreaInsets();
   const score = customer.protection_intelligence_score;
   const firstName = customer.name.split(' ')[0];
 
@@ -102,7 +104,7 @@ export default function CustomerFile({
 
   return (
     <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-      <View style={styles.topBar}>
+      <View style={[styles.topBar, { paddingTop: insets.top + space[1] }]}>
         <BackButton onPress={onBack} />
         <Text style={styles.topTitle} numberOfLines={1}>
           {customer.name}

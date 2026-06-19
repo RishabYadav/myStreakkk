@@ -16,12 +16,13 @@ import {
   Easing,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { Feather } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { colors, fonts, shadows, radius, space, type as typeScale, touch } from '../theme';
 import { AgentState, MissionItem } from '../types';
 import { AI_SLIDES, ACTIVE_MISSIONS, FALLBACK_MISSIONS } from '../mockData';
 import { formatCountdown } from '../utils';
-import PartnerCustomerToggle from '../components/PartnerCustomerToggle';
 import RewardsDesk from '../components/streak/RewardsDesk';
 import Toast from '../components/ui/Toast';
 import PressableScale from '../components/ui/PressableScale';
@@ -42,11 +43,10 @@ import {
 interface Props {
   agent: AgentState;
   hasBooked: boolean;
-  viewMode: 'streak' | 'customer_pov';
-  onChangeView: (mode: 'streak' | 'customer_pov') => void;
   onOpenBooking: () => void;
   onUpdateCoins: (amount: number) => void;
   onDemoReset: () => void;
+  onBack: () => void;
 }
 
 const MILESTONES = [
@@ -68,7 +68,7 @@ const MISSION_ICONS: Record<MissionItem['icon'], string> = {
 };
 
 const { width: SCREEN_W } = Dimensions.get('window');
-const SLIDE_W = SCREEN_W - 72;
+const SLIDE_W = SCREEN_W - space[4] * 2 - space[3] * 2;
 
 function SwipeableMission({
   mission,
@@ -203,12 +203,12 @@ function SwipeableMission({
 export default function StreakHome({
   agent,
   hasBooked,
-  viewMode,
-  onChangeView,
   onOpenBooking,
   onUpdateCoins,
   onDemoReset,
+  onBack,
 }: Props) {
+  const insets = useSafeAreaInsets();
   const [timer, setTimer] = useState(81574);
   const [slideIdx, setSlideIdx] = useState(0);
   const [activeMissions, setActiveMissions] = useState<MissionItem[]>(ACTIVE_MISSIONS);
@@ -316,14 +316,25 @@ export default function StreakHome({
         <LinearGradient colors={[...colors.partner.hero]} style={styles.hero}>
           <BreatheView style={styles.heroGlow} duration={3200} min={0.25} max={0.85} />
 
-          <View style={styles.heroTop}>
-            <View>
+          <View style={[styles.heroTopRow, { paddingTop: insets.top + space[1] }]}>
+            <Pressable
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                onBack();
+              }}
+              style={styles.backBtn}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel="Back to role selection"
+            >
+              <Feather name="chevron-left" size={24} color="rgba(255,255,255,0.92)" />
+            </Pressable>
+
+            <View style={styles.heroIdentity}>
               <Text style={styles.greeting}>Good morning,</Text>
               <Text style={styles.agentName}>{agent.name}</Text>
             </View>
-          </View>
 
-          <View style={styles.heroRow2}>
             <Pressable
               onPress={() => showToast('Earn coins by finishing your daily missions to protect your streak!')}
               style={styles.coinPill}
@@ -335,9 +346,7 @@ export default function StreakHome({
                 float
                 textStyle={styles.coinText}
               />
-              <Text style={styles.infoIcon}>ⓘ</Text>
             </Pressable>
-            <PartnerCustomerToggle activeMode={viewMode} onChange={onChangeView} />
           </View>
 
           <Pressable onLongPress={handleStreakLongPress} delayLongPress={800}>
@@ -396,6 +405,9 @@ export default function StreakHome({
         <View style={styles.body}>
           <LinearGradient colors={[colors.royalDeep, colors.royalMid, colors.royalDark]} style={styles.eventCard}>
             <ShimmerBand />
+            <View style={styles.exclusiveBanner}>
+              <Text style={styles.exclusiveBannerText}>Exclusive for you</Text>
+            </View>
             <View style={styles.eventTop}>
               <View style={styles.eventChip}>
                 <LiveDot color="#FDE68A" size={6} style={styles.eventLiveDot} />
@@ -431,55 +443,31 @@ export default function StreakHome({
                     </PulseScale>
                     <View style={styles.aiTitleWrap}>
                       <Text style={styles.aiLabel}>Proactive Insight</Text>
-                      <Text style={styles.aiTitle}>{item.title}</Text>
+                      <Text style={styles.aiTitle} numberOfLines={2}>{item.title}</Text>
                     </View>
                     <View style={styles.aiTag}><Text style={styles.aiTagText}>{item.badge}</Text></View>
                   </View>
-                  <Text style={styles.aiBody}>{item.text}</Text>
+                  <Text style={styles.aiBody} numberOfLines={3}>{item.text}</Text>
                 </View>
               )}
             />
             <View style={styles.carouselFooter}>
-              <View style={styles.dots}>
-                {AI_SLIDES.map((_, i) => (
-                  <Pressable
-                    key={i}
-                    onPress={() => {
-                      setSlideIdx(i);
-                      carouselRef.current?.scrollToIndex({ index: i, animated: true });
-                    }}
-                    style={styles.dotPress}
-                  >
-                    <CarouselDot
-                      active={slideIdx === i}
-                      activeColor={colors.partner.accent}
-                      inactiveColor="#CBD5E1"
-                    />
-                  </Pressable>
-                ))}
-              </View>
-              <View style={styles.arrows}>
+              {AI_SLIDES.map((_, i) => (
                 <Pressable
+                  key={i}
                   onPress={() => {
-                    const next = slideIdx > 0 ? slideIdx - 1 : AI_SLIDES.length - 1;
-                    setSlideIdx(next);
-                    carouselRef.current?.scrollToIndex({ index: next, animated: true });
+                    setSlideIdx(i);
+                    carouselRef.current?.scrollToIndex({ index: i, animated: true });
                   }}
-                  style={styles.arrowBtn}
+                  style={styles.dotPress}
                 >
-                  <Text style={styles.arrow}>‹</Text>
+                  <CarouselDot
+                    active={slideIdx === i}
+                    activeColor={colors.partner.accent}
+                    inactiveColor="#CBD5E1"
+                  />
                 </Pressable>
-                <Pressable
-                  onPress={() => {
-                    const next = slideIdx < AI_SLIDES.length - 1 ? slideIdx + 1 : 0;
-                    setSlideIdx(next);
-                    carouselRef.current?.scrollToIndex({ index: next, animated: true });
-                  }}
-                  style={styles.arrowBtn}
-                >
-                  <Text style={styles.arrow}>›</Text>
-                </Pressable>
-              </View>
+              ))}
             </View>
           </View>
 
@@ -487,7 +475,7 @@ export default function StreakHome({
             <View style={styles.missionSectionHeader}>
               <View style={styles.missionSectionCopy}>
                 <View style={styles.missionTitleLine}>
-                  <Text style={styles.sectionTitle}>Choose your mission</Text>
+                  <Text style={styles.sectionTitle}>Missions for you</Text>
                   <View style={styles.missionCountPill}>
                     <LiveDot color={colors.partner.accent} size={5} />
                     <Text style={styles.missionCountText}>{activeMissions.length} active</Text>
@@ -593,9 +581,8 @@ const styles = StyleSheet.create({
   scroll: { flex: 1 },
   content: { paddingBottom: space[11] },
   hero: {
-    paddingHorizontal: space[5],
-    paddingTop: space[3],
-    paddingBottom: space[6],
+    paddingHorizontal: space[4],
+    paddingBottom: space[4],
     borderBottomLeftRadius: radius.xl,
     borderBottomRightRadius: radius.xl,
     overflow: 'hidden',
@@ -605,42 +592,53 @@ const styles = StyleSheet.create({
     top: -40,
     left: 0,
     right: 0,
-    height: 160,
+    height: 120,
     backgroundColor: 'rgba(255,255,255,0.06)',
   },
-  heroTop: { marginBottom: space[3] },
-  greeting: { ...typeScale.label, color: colors.text.inverseMuted },
-  agentName: { ...typeScale.title, color: colors.text.inverse, marginTop: space[1] },
-  heroRow2: {
+  heroTopRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: space[4],
-    paddingBottom: space[3],
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255,255,255,0.12)',
+    marginBottom: space[2],
+    gap: space[2],
+  },
+  backBtn: {
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: -space[1],
+  },
+  heroIdentity: {
+    flex: 1,
+    minWidth: 0,
+  },
+  greeting: { ...typeScale.label, color: colors.text.inverseMuted, fontSize: 11 },
+  agentName: {
+    fontFamily: fonts.headingExtra,
+    fontSize: 20,
+    color: colors.text.inverse,
+    letterSpacing: -0.4,
+    marginTop: 2,
   },
   coinPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: space[2],
     backgroundColor: 'rgba(255,255,255,0.15)',
-    paddingHorizontal: space[3],
-    paddingVertical: space[2],
+    paddingHorizontal: space[2],
+    paddingVertical: 6,
     borderRadius: radius.md,
-    minHeight: 32,
+    flexShrink: 0,
   },
   coinText: { fontFamily: fonts.headingExtra, fontSize: typeScale.label.fontSize, color: colors.goldLight },
-  infoIcon: { color: colors.text.inverseMuted, fontSize: 12 },
-  streakRow: { flexDirection: 'row', alignItems: 'center', gap: space[3], marginBottom: space[3] },
-  flame: { fontSize: 36 },
-  streakNum: { fontFamily: fonts.headingExtra, fontSize: 48, color: colors.text.inverse, letterSpacing: -1 },
+  streakRow: { flexDirection: 'row', alignItems: 'center', gap: space[2], marginBottom: space[2] },
+  flame: { fontSize: 32 },
+  streakNum: { fontFamily: fonts.headingExtra, fontSize: 42, color: colors.text.inverse, letterSpacing: -1 },
   streakLabel: { ...typeScale.label, color: colors.text.inverseMuted, fontSize: 10 },
   heroCard: {
     backgroundColor: 'rgba(255,255,255,0.1)',
     borderRadius: radius.lg,
-    padding: space[3],
-    marginBottom: space[3],
+    padding: space[2],
+    marginBottom: space[2],
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.1)',
   },
@@ -678,12 +676,30 @@ const styles = StyleSheet.create({
   eventCard: {
     borderRadius: radius.lg,
     padding: space[4],
+    paddingTop: space[5],
     borderWidth: 1,
     borderColor: 'rgba(96,165,250,0.25)',
     overflow: 'hidden',
   },
+  exclusiveBanner: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    backgroundColor: '#FDE68A',
+    paddingHorizontal: space[3],
+    paddingVertical: 5,
+    borderBottomRightRadius: radius.md,
+    zIndex: 1,
+  },
+  exclusiveBannerText: {
+    fontFamily: fonts.bodyBold,
+    fontSize: 10,
+    color: '#78350F',
+    letterSpacing: 0.3,
+    textTransform: 'uppercase',
+  },
   eventLiveDot: { marginRight: space[1] },
-  eventTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: space[2] },
+  eventTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: space[2], marginTop: space[1] },
   eventChip: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -709,12 +725,14 @@ const styles = StyleSheet.create({
   aiCard: {
     backgroundColor: colors.surface.card,
     borderRadius: radius.lg,
-    padding: space[4],
+    paddingHorizontal: space[3],
+    paddingTop: space[3],
+    paddingBottom: space[2],
     borderWidth: 1,
     borderColor: colors.border.subtle,
   },
-  slide: { paddingRight: space[2] },
-  aiHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: space[2], marginBottom: space[3] },
+  slide: { paddingRight: 0 },
+  aiHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: space[2], marginBottom: space[2] },
   aiBadge: {
     width: 24,
     height: 24,
@@ -734,30 +752,16 @@ const styles = StyleSheet.create({
     borderRadius: radius.sm,
   },
   aiTagText: { ...typeScale.label, color: colors.partner.accent, fontSize: 10 },
-  aiBody: { ...typeScale.bodySm, color: colors.text.secondary, minHeight: 44 },
+  aiBody: { ...typeScale.bodySm, color: colors.text.secondary, minHeight: 52, lineHeight: 18 },
   carouselFooter: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: space[3],
-    paddingTop: space[3],
-    borderTopWidth: 1,
-    borderTopColor: colors.border.subtle,
-  },
-  dots: { flexDirection: 'row', gap: space[2], alignItems: 'center' },
-  dotPress: { paddingVertical: space[1] },
-  arrows: { flexDirection: 'row', gap: space[2] },
-  arrowBtn: {
-    width: touch.min,
-    height: touch.min,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.border.default,
-    alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.surface.card,
+    alignItems: 'center',
+    gap: space[2],
+    marginTop: space[2],
+    paddingTop: space[2],
   },
-  arrow: { fontSize: 22, color: colors.text.secondary, lineHeight: 24 },
+  dotPress: { paddingVertical: space[1] },
   sectionTitle: { ...typeScale.heading, color: colors.text.primary },
   missionSection: { gap: space[3] },
   missionSectionHeader: { marginBottom: space[1] },

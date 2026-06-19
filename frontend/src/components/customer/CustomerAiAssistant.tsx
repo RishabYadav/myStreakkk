@@ -18,6 +18,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { colors, fonts, radius, space, type as typeScale } from '../../theme';
+import { customerTheme } from '../../theme/customerTheme';
 import { Customer } from '../../types';
 import { postCustomerAiChat, AiChatTurn } from '../../services/api';
 import AiOrbLogo from './AiOrbLogo';
@@ -95,15 +96,15 @@ function MessageBubble({ item, index }: { item: ChatMessage; index: number }) {
       <View style={[styles.msgRow, isUser && styles.msgRowUser]}>
         {!isUser && (
           <View style={styles.msgAvatar}>
-            <LinearGradient colors={['#059669', '#6366F1']} style={styles.msgAvatarGrad}>
-              <Feather name="zap" size={12} color="#FFF" />
+            <LinearGradient colors={[customerTheme.accentSoft, '#FFFFFF']} style={styles.msgAvatarGrad}>
+              <Feather name="zap" size={12} color={customerTheme.accent} />
             </LinearGradient>
           </View>
         )}
         <View style={[styles.bubble, isUser ? styles.bubbleUser : styles.bubbleAi]}>
           {!isUser && (
             <LinearGradient
-              colors={['rgba(52,211,153,0.12)', 'rgba(99,102,241,0.08)']}
+              colors={['rgba(219,234,254,0.5)', 'rgba(239,246,255,0.3)']}
               style={StyleSheet.absoluteFill}
             />
           )}
@@ -237,7 +238,7 @@ export default function CustomerAiAssistant({ customer, bottomOffset = 64 }: Pro
             behavior={Platform.OS === 'ios' ? 'padding' : undefined}
             style={[styles.sheet, { height: sheetHeight, paddingBottom: insets.bottom }]}
           >
-            <LinearGradient colors={['#065F46', '#0F766E', '#134E4A']} style={styles.sheetHeader}>
+            <LinearGradient colors={[...customerTheme.nav]} style={styles.sheetHeader}>
               <View style={styles.handle} />
               <View style={styles.headerRow}>
                 <AiOrbLogo size={44} />
@@ -245,7 +246,7 @@ export default function CustomerAiAssistant({ customer, bottomOffset = 64 }: Pro
                   <View style={styles.headerTitleRow}>
                     <Text style={styles.headerTitle}>Protection Coach</Text>
                     <View style={styles.onlineChip}>
-                      <LiveDot color="#6EE7B7" size={5} />
+                      <LiveDot color={customerTheme.accent} size={5} />
                       <Text style={styles.onlineText}>Live</Text>
                     </View>
                   </View>
@@ -259,7 +260,7 @@ export default function CustomerAiAssistant({ customer, bottomOffset = 64 }: Pro
                   style={styles.closeBtn}
                   accessibilityLabel="Close chat"
                 >
-                  <Feather name="x" size={20} color="#ECFDF5" />
+                  <Feather name="x" size={20} color={customerTheme.textSecondary} />
                 </Pressable>
               </View>
             </LinearGradient>
@@ -293,7 +294,7 @@ export default function CustomerAiAssistant({ customer, bottomOffset = 64 }: Pro
 
             <View style={styles.inputBar}>
               <LinearGradient
-                colors={['rgba(236,253,245,0.95)', '#FFFFFF']}
+                colors={['rgba(239,246,255,0.95)', '#FFFFFF']}
                 style={styles.inputShell}
               >
                 <TextInput
@@ -315,7 +316,7 @@ export default function CustomerAiAssistant({ customer, bottomOffset = 64 }: Pro
                     style={[styles.sendBtn, (!input.trim() || typing) && styles.sendBtnDisabled]}
                   >
                     <LinearGradient
-                      colors={input.trim() && !typing ? ['#059669', '#6366F1'] : ['#CBD5E1', '#94A3B8']}
+                      colors={input.trim() && !typing ? [customerTheme.accent, '#2563EB'] : ['#CBD5E1', '#94A3B8']}
                       style={styles.sendGrad}
                     >
                       <Feather name="arrow-up" size={18} color="#FFF" />
@@ -323,7 +324,6 @@ export default function CustomerAiAssistant({ customer, bottomOffset = 64 }: Pro
                   </Pressable>
                 </PulseScale>
               </LinearGradient>
-              <Text style={styles.inputHint}>Powered by PBPartners · API ready</Text>
             </View>
           </KeyboardAvoidingView>
         </View>
@@ -350,26 +350,26 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 3,
-    backgroundColor: '#0F172A',
+    backgroundColor: customerTheme.accentDark,
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: radius.pill,
     borderWidth: 1,
-    borderColor: 'rgba(52,211,153,0.5)',
+    borderColor: customerTheme.accentBorder,
   },
   fabBadgeText: {
     fontFamily: fonts.bodyBold,
     fontSize: 8.5,
-    color: '#6EE7B7',
+    color: '#FFF',
     letterSpacing: 0.2,
   },
   modalRoot: { flex: 1, justifyContent: 'flex-end' },
   backdrop: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(15,23,42,0.55)',
+    backgroundColor: 'rgba(15,23,42,0.4)',
   },
   sheet: {
-    backgroundColor: '#F8FAFC',
+    backgroundColor: customerTheme.canvas,
     borderTopLeftRadius: radius.sheet,
     borderTopRightRadius: radius.sheet,
     overflow: 'hidden',
@@ -383,32 +383,36 @@ const styles = StyleSheet.create({
     width: 36,
     height: 4,
     borderRadius: 2,
-    backgroundColor: 'rgba(255,255,255,0.35)',
+    backgroundColor: customerTheme.accentBorder,
     alignSelf: 'center',
     marginBottom: space[3],
   },
   headerRow: { flexDirection: 'row', alignItems: 'center', gap: space[3] },
   headerCopy: { flex: 1 },
   headerTitleRow: { flexDirection: 'row', alignItems: 'center', gap: space[2] },
-  headerTitle: { fontFamily: fonts.headingExtra, fontSize: typeScale.body.fontSize, color: '#FFF' },
+  headerTitle: { fontFamily: fonts.headingExtra, fontSize: typeScale.body.fontSize, color: customerTheme.textPrimary },
   onlineChip: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: 'rgba(255,255,255,0.12)',
+    backgroundColor: '#FFF',
     paddingHorizontal: space[2],
     paddingVertical: 2,
     borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: customerTheme.accentBorder,
   },
-  onlineText: { fontFamily: fonts.bodyBold, fontSize: 9, color: '#A7F3D0' },
-  headerSub: { ...typeScale.caption, color: 'rgba(167,243,208,0.9)', marginTop: 2 },
+  onlineText: { fontFamily: fonts.bodyBold, fontSize: 9, color: customerTheme.accentDark },
+  headerSub: { ...typeScale.caption, color: customerTheme.textMuted, marginTop: 2 },
   closeBtn: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: 'rgba(255,255,255,0.12)',
+    backgroundColor: '#FFF',
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: customerTheme.accentBorder,
   },
   msgList: { padding: space[4], paddingBottom: space[2], gap: space[3] },
   msgRow: { flexDirection: 'row', alignItems: 'flex-end', gap: space[2], maxWidth: '92%' },
@@ -430,12 +434,12 @@ const styles = StyleSheet.create({
   },
   bubbleAi: {
     backgroundColor: '#FFF',
-    borderColor: 'rgba(52,211,153,0.25)',
+    borderColor: customerTheme.accentBorder,
     borderTopLeftRadius: 4,
   },
   bubbleUser: {
-    backgroundColor: '#2563EB',
-    borderColor: '#1D4ED8',
+    backgroundColor: customerTheme.accent,
+    borderColor: customerTheme.accentDark,
     borderTopRightRadius: 4,
   },
   bubbleText: {
@@ -457,13 +461,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: space[3],
     paddingVertical: space[3],
     borderWidth: 1,
-    borderColor: 'rgba(52,211,153,0.2)',
+    borderColor: customerTheme.accentBorder,
   },
   typingDot: {
     width: 7,
     height: 7,
     borderRadius: 4,
-    backgroundColor: '#14B8A6',
+    backgroundColor: customerTheme.accent,
   },
   typingLabel: {
     ...typeScale.caption,
@@ -482,9 +486,9 @@ const styles = StyleSheet.create({
   },
   suggestRow: { flexDirection: 'row', flexWrap: 'wrap', gap: space[2] },
   suggestChip: {
-    backgroundColor: '#ECFDF5',
+    backgroundColor: customerTheme.accentSoft,
     borderWidth: 1,
-    borderColor: '#A7F3D0',
+    borderColor: customerTheme.accentBorder,
     paddingHorizontal: space[3],
     paddingVertical: space[2],
     borderRadius: radius.pill,
@@ -492,14 +496,14 @@ const styles = StyleSheet.create({
   suggestText: {
     fontFamily: fonts.bodySemi,
     fontSize: typeScale.caption.fontSize,
-    color: '#065F46',
+    color: customerTheme.accentDark,
   },
   inputBar: {
     paddingHorizontal: space[4],
     paddingTop: space[2],
     paddingBottom: space[3],
     borderTopWidth: 1,
-    borderTopColor: colors.border.subtle,
+    borderTopColor: customerTheme.accentBorder,
     backgroundColor: '#FFF',
   },
   inputShell: {
@@ -511,7 +515,7 @@ const styles = StyleSheet.create({
     paddingRight: space[2],
     paddingVertical: space[2],
     borderWidth: 1,
-    borderColor: '#D1FAE5',
+    borderColor: customerTheme.accentBorder,
   },
   input: {
     flex: 1,
@@ -529,12 +533,5 @@ const styles = StyleSheet.create({
     borderRadius: 19,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  inputHint: {
-    ...typeScale.caption,
-    color: colors.text.tertiary,
-    textAlign: 'center',
-    marginTop: space[2],
-    fontSize: 10,
   },
 });

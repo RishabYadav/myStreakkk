@@ -15,6 +15,7 @@ interface Props {
 
 const TABS: { id: TabId; label: string; icon: keyof typeof Feather.glyphMap }[] = [
   { id: 'streak', label: 'Streak', icon: 'zap' },
+  { id: 'grow', label: 'Grow', icon: 'trending-up' },
   { id: 'customers', label: 'Customers', icon: 'users' },
   { id: 'profile', label: 'Profile', icon: 'user' },
 ];
@@ -23,12 +24,13 @@ export default function BottomNav({ activeTab, onTabChange, visible = true }: Pr
   const insets = useSafeAreaInsets();
   if (!visible) return null;
 
-  const isStreakActive = activeTab === 'streak' || activeTab === 'customer_pov';
+  const isStreakActive = activeTab === 'streak';
 
   return (
     <View style={[styles.wrap, shadows.nav, { paddingBottom: Math.max(insets.bottom, space[2]) }]}>
       {TABS.map((tab) => {
         const active = tab.id === 'streak' ? isStreakActive : activeTab === tab.id;
+        const isGrow = tab.id === 'grow';
         return (
           <Pressable
             key={tab.id}
@@ -41,13 +43,13 @@ export default function BottomNav({ activeTab, onTabChange, visible = true }: Pr
             accessibilityState={{ selected: active }}
             accessibilityLabel={tab.label}
           >
-            {active && <View style={styles.topIndicator} />}
-            {active && tab.id === 'streak' ? (
-              <PulseScale min={1} max={1.14} duration={1400}>
+            {active && <View style={[styles.topIndicator, isGrow && styles.topIndicatorGrow]} />}
+            {active && (tab.id === 'streak' || isGrow) ? (
+              <PulseScale min={1} max={isGrow ? 1.12 : 1.14} duration={1400}>
                 <Feather
                   name={tab.icon}
                   size={22}
-                  color={colors.partner.accent}
+                  color={isGrow ? colors.customerGreen : colors.partner.accent}
                 />
               </PulseScale>
             ) : (
@@ -57,7 +59,9 @@ export default function BottomNav({ activeTab, onTabChange, visible = true }: Pr
                 color={active ? colors.partner.accent : colors.text.tertiary}
               />
             )}
-            <Text style={[styles.label, active && styles.labelActive]}>{tab.label}</Text>
+            <Text style={[styles.label, active && styles.labelActive, active && isGrow && styles.labelActiveGrow]}>
+              {tab.label}
+            </Text>
           </Pressable>
         );
       })}
@@ -93,6 +97,9 @@ const styles = StyleSheet.create({
     borderRadius: 1,
     backgroundColor: colors.partner.accent,
   },
+  topIndicatorGrow: {
+    backgroundColor: colors.customerGreen,
+  },
   label: {
     fontFamily: fonts.bodySemi,
     fontSize: typeScale.label.fontSize,
@@ -102,5 +109,8 @@ const styles = StyleSheet.create({
   labelActive: {
     fontFamily: fonts.bodyBold,
     color: colors.partner.accent,
+  },
+  labelActiveGrow: {
+    color: colors.customerGreen,
   },
 });
