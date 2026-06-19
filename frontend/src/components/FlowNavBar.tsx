@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { ReactNode } from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Feather } from '@expo/vector-icons';
@@ -13,13 +13,15 @@ interface Props {
   variant: FlowNavVariant;
   onBack: () => void;
   badge?: string;
+  trailing?: ReactNode;
+  backLabel?: string;
 }
 
 export function flowNavStatusBar(variant: FlowNavVariant): 'light' | 'dark' {
   return variant === 'partner-hero' ? 'light' : 'dark';
 }
 
-export default function FlowNavBar({ variant, onBack, badge }: Props) {
+export default function FlowNavBar({ variant, onBack, badge, trailing, backLabel }: Props) {
   const insets = useSafeAreaInsets();
   const isLight = variant === 'partner-light' || variant === 'customer-light';
   const isCustomer = variant === 'customer-light';
@@ -38,10 +40,10 @@ export default function FlowNavBar({ variant, onBack, badge }: Props) {
         accessibilityRole="button"
         accessibilityLabel="Back to role selection"
       >
-        <Feather name="chevron-left" size={22} color={chevronColor} style={styles.chevron} />
-        <Text style={[styles.backLabel, { color: tint }]}>Cadence</Text>
+        <Feather name="chevron-left" size={24} color={chevronColor} style={styles.chevron} />
+        {backLabel ? <Text style={[styles.backLabel, { color: tint }]}>{backLabel}</Text> : null}
       </Pressable>
-      {badge ? (
+      {trailing ?? (badge ? (
         <View
           style={[
             styles.badge,
@@ -61,7 +63,7 @@ export default function FlowNavBar({ variant, onBack, badge }: Props) {
         </View>
       ) : (
         <View style={styles.badgeSpacer} />
-      )}
+      ))}
     </View>
   );
 

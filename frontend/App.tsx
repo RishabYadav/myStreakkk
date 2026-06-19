@@ -295,13 +295,20 @@ function MainShell({
     if (isCustomerFlow) {
       return { variant: 'customer-light', badge: 'Preview' };
     }
+    if (activeTab === 'streak') {
+      return null;
+    }
     if (activeTab === 'grow' || activeTab === 'profile') {
       return { variant: 'partner-light', badge: 'Partner' };
     }
-    return { variant: 'partner-hero', badge: 'Partner' };
+    return { variant: 'partner-light', badge: 'Partner' };
   })();
 
-  const statusBarStyle = flowNavConfig ? flowNavStatusBar(flowNavConfig.variant) : 'dark';
+  const statusBarStyle = flowNavConfig
+    ? flowNavStatusBar(flowNavConfig.variant)
+    : !isCustomerFlow && activeTab === 'streak'
+      ? 'light'
+      : 'dark';
 
   const renderMain = () => {
     if (isCustomerFlow) {
@@ -353,6 +360,7 @@ function MainShell({
             onOpenBooking={onOpenBooking}
             onUpdateCoins={onUpdateCoins}
             onDemoReset={onDemoReset}
+            onBack={onSwitchExperience}
           />
         );
       case 'grow':
