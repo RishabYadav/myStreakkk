@@ -23,7 +23,7 @@ export interface GenerateContentResponse {
 }
 
 export interface GenerateContentRequest {
-  key?: 1 | 3;
+  key?: 1 | 2 | 3;
   partner_code: string;
   partner_name: string;
   partner_group?: string;

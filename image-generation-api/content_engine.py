@@ -1,14 +1,12 @@
-import base64
 import logging
 
 from google import genai
-from google.genai import errors as genai_errors
 from google.genai import types
 from pydantic import BaseModel
 
 from openai_image import generate_poster_image as generate_openai_poster_image
 from partners import Partner
-from prompts import SYSTEM_PROMPT, build_image_prompt, build_user_prompt
+from prompts import SYSTEM_PROMPT, build_user_prompt
 from score_card_prompts import (
     build_protection_score_image_prompt,
     build_score_card_content,
@@ -18,7 +16,6 @@ from score_card_prompts import (
 logger = logging.getLogger(__name__)
 
 CONTENT_MODEL = "gemini-2.5-flash"
-IMAGE_MODEL = "gemini-2.5-flash-image"
 
 
 class ShareableContent(BaseModel):
@@ -59,69 +56,30 @@ def generate_content(client: genai.Client, partner: Partner) -> ShareableContent
     return ShareableContent.model_validate_json(response.text)
 
 
-def generate_gemini_poster_image(
-    client: genai.Client, image_prompt: str
+def generate_openai_poster(
+    image_prompt: str,
 ) -> tuple[PosterImage | None, str | None]:
-    try:
-        response = client.models.generate_content(
-            model=IMAGE_MODEL,
-            contents=image_prompt,
-            config=types.GenerateContentConfig(
-                response_modalities=["IMAGE"],
-                image_config=types.ImageConfig(
-                    aspect_ratio="1:1",
-                ),
-            ),
-        )
-    except genai_errors.ClientError as exc:
-        logger.warning("Poster image generation failed: %s", exc)
-        if exc.code == 429:
-            return None, (
-                "Image generation quota exceeded on your Gemini API plan. "
-                "Use include_poster=false for text-only content, or enable billing "
-                "for Nano Banana (gemini-2.5-flash-image)."
-            )
-        return None, f"Image generation failed: {exc}"
-
-    if not response.candidates:
-        return None, "Image generation returned no candidates."
-
-    for part in response.candidates[0].content.parts:
-        if part.inline_data and part.inline_data.data:
-            return (
-                PosterImage(
-                    mime_type=part.inline_data.mime_type or "image/png",
-                    data_base64=base64.b64encode(part.inline_data.data).decode(
-                        "utf-8"
-                    ),
-                ),
-                None,
-            )
-
-    return None, "Image generation returned no image data."
+    image_data, error = generate_openai_poster_image(image_prompt)
+    if image_data:
+        return PosterImage.model_validate(image_data), None
+    return None, error
 
 
 def generate_wishing_content(
-    client: genai.Client, partner: Partner, include_poster: bool = False
+    client: genai.Client,
+    partner: Partner,
+    *,
+    response_key: int = 1,
+    include_poster: bool = False,
 ) -> ShareableContentResult:
     content = generate_content(client, partner)
     poster_image = None
     poster_error = None
     if include_poster:
-        poster_image, poster_error = generate_gemini_poster_image(
-            client,
-            build_image_prompt(
-                content.image_prompt,
-                partner.partner_name,
-                content.image_heading,
-                content.image_quote,
-                partner.partner_group,
-                partner.is_birthday_today,
-            ),
-        )
+        poster_image, poster_error = generate_openai_poster(content.image_prompt)
 
     return ShareableContentResult(
-        key=1,
+        key=response_key,
         partner_code=partner.partner_code,
         is_birthday_today=partner.is_birthday_today,
         content=content,
@@ -154,11 +112,7 @@ def generate_protection_score_card(
 
     poster_image = None
     poster_error = None
-    image_data, error = generate_openai_poster_image(image_prompt)
-    if image_data:
-        poster_image = PosterImage.model_validate(image_data)
-    else:
-        poster_error = error
+    poster_image, poster_error = generate_openai_poster(image_prompt)
 
     return ShareableContentResult(
         key=3,
@@ -193,4 +147,12 @@ def generate_shareable_content(
             current_date=current_date,
         )
 
-    return generate_wishing_content(client, partner, include_poster=include_poster)
+    if key not in (1, 2):
+        raise ValueError("key must be 1, 2 (wishing), or 3 (protection score card)")
+
+    return generate_wishing_content(
+        client,
+        partner,
+        response_key=key,
+        include_poster=include_poster,
+    )

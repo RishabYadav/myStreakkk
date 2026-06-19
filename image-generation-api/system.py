@@ -29,19 +29,19 @@ class GenerateContentRequest(BaseModel):
     key: int = Field(
         default=1,
         examples=[1],
-        description="1 = happy wishing content, 3 = protection score card image",
+        description="1 = wishing content, 2 = greeting card with GPT image, 3 = protection score card",
     )
     partner_code: str = Field(..., examples=["12314"])
     partner_name: str = Field(..., examples=["Abhishek"])
     partner_group: str | None = Field(
         default=None,
         examples=["Health"],
-        description="Required for key=1. Partner vertical: Health, SME, Motor, Life, Travel, etc.",
+        description="Required for key=1 and key=2. Partner vertical: Health, SME, Motor, Life, Travel, etc.",
     )
     partner_dob: str | None = Field(
         default=None,
         examples=["1990-05-15"],
-        description="Required for key=1. Partner date of birth (YYYY-MM-DD).",
+        description="Required for key=1 and key=2. Partner date of birth (YYYY-MM-DD).",
     )
     partner_phone_number: str | None = Field(
         default=None,
@@ -64,7 +64,7 @@ class GenerateContentRequest(BaseModel):
     monthly_renewals: int | None = Field(default=None, examples=[20])
     include_poster: bool = Field(
         default=False,
-        description="For key=1: generate wishing poster via Gemini. key=3 always generates score card image.",
+        description="For key=1/2: generate wishing poster via OpenAI GPT image. key=3 always generates score card image.",
     )
     protection_score: int | None = Field(
         default=None,
@@ -86,19 +86,19 @@ class GenerateContentRequest(BaseModel):
     )
     user_prompt: str | None = Field(
         default=None,
-        description="Optional extra instructions (key=1 wishing flow).",
+        description="Optional extra instructions (key=1 and key=2 wishing flow).",
     )
 
     @model_validator(mode="after")
     def validate_key_requirements(self) -> "GenerateContentRequest":
-        if self.key not in (1, 3):
-            raise ValueError("key must be 1 (wishing) or 3 (protection score card)")
+        if self.key not in (1, 2, 3):
+            raise ValueError("key must be 1, 2 (wishing), or 3 (protection score card)")
 
-        if self.key == 1:
+        if self.key in (1, 2):
             if not self.partner_group:
-                raise ValueError("partner_group is required when key=1")
+                raise ValueError("partner_group is required when key=1 or key=2")
             if not self.partner_dob:
-                raise ValueError("partner_dob is required when key=1")
+                raise ValueError("partner_dob is required when key=1 or key=2")
             return self
 
         if self.protection_score is None:
@@ -158,13 +158,16 @@ def health():
 def generate_content(request: GenerateContentRequest):
     partner = build_partner_from_request(request)
 
+    needs_openai = request.key == 3 or (
+        request.key in (1, 2) and (request.include_poster or request.key == 2)
+    )
+    if needs_openai and not os.environ.get("OPENAI_API_KEY"):
+        raise HTTPException(
+            status_code=500,
+            detail="OPENAI_API_KEY environment variable is not set (required for image generation)",
+        )
+
     if request.key == 3:
-        openai_key = os.environ.get("OPENAI_API_KEY")
-        if not openai_key:
-            raise HTTPException(
-                status_code=500,
-                detail="OPENAI_API_KEY environment variable is not set (required for key=3)",
-            )
         return generate_shareable_content(
             get_client(),
             partner,
@@ -174,10 +177,11 @@ def generate_content(request: GenerateContentRequest):
             current_date=request.current_date,
         )
 
+    include_poster = request.include_poster or request.key == 2
     client = get_client()
     return generate_shareable_content(
         client,
         partner,
-        key=1,
-        include_poster=request.include_poster,
+        key=request.key,
+        include_poster=include_poster,
     )

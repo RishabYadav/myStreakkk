@@ -4,7 +4,7 @@ import { HttpError } from '../../shared/errors/http-error';
 import { getRecommendedTemplate } from './llm.service';
 
 const baseSchema = z.object({
-  key: z.union([z.literal(1), z.literal(3)]).optional(),
+  key: z.union([z.literal(1), z.literal(2), z.literal(3)]).optional(),
   partner_code: z.string().trim().min(1).max(50),
   partner_name: z.string().trim().min(1).max(120),
   partner_group: z.string().trim().min(1).max(50).optional(),
@@ -26,18 +26,18 @@ const baseSchema = z.object({
 const requestSchema = baseSchema.superRefine((data, ctx) => {
   const key = data.key ?? 1;
 
-  if (key === 1) {
+  if (key === 1 || key === 2) {
     if (!data.partner_group) {
       ctx.addIssue({
         code: 'custom',
-        message: 'partner_group is required when key=1',
+        message: 'partner_group is required when key=1 or key=2',
         path: ['partner_group'],
       });
     }
     if (!data.partner_dob) {
       ctx.addIssue({
         code: 'custom',
-        message: 'partner_dob is required when key=1',
+        message: 'partner_dob is required when key=1 or key=2',
         path: ['partner_dob'],
       });
     }

@@ -5,7 +5,7 @@ let mongoConnected = false;
 
 export async function connectMongo(): Promise<void> {
   if (!env.MONGODB_URI) {
-    console.warn('⚠️  MONGODB_URI is not configured (AI Chat will be unavailable)');
+    console.warn('⚠️  MONGODB_URI is not configured (AI Chat and LLM cache will be unavailable)');
     return;
   }
 

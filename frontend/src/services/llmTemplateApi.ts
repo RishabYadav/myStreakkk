@@ -2,7 +2,7 @@ import { Customer } from '../types';
 
 const API_BASE = process.env.EXPO_PUBLIC_API_BASE ?? 'http://localhost:3000';
 
-export type TemplateApiKey = 1 | 3;
+export type TemplateApiKey = 1 | 2 | 3;
 
 export interface TemplateVariables {
   partnerName: string;
@@ -85,9 +85,9 @@ export function insightTextForCustomer(customer: Customer): string {
   return 'Health & term gaps hold you back';
 }
 
-/** UI section id → backend API key (greetings id=2 → wishing key=1). */
+/** UI section id → backend API key (greetings id=2 → greeting key=2). */
 export function getSectionApiKey(sectionId: number): TemplateApiKey | null {
-  if (sectionId === 2) return 1;
+  if (sectionId === 2) return 2;
   if (sectionId === 3 || sectionId === 4) return 3;
   return null;
 }
@@ -107,7 +107,7 @@ export function buildScoreCardPayload(customer: Customer, currentDate = formatTe
 export function buildGreetingPayload(customer: Customer) {
   const partnerName = customer.name.split(' ')[0];
   return {
-    key: 1 as const,
+    key: 2 as const,
     partner_code: customer.customer_id,
     partner_name: partnerName,
     partner_group: customer.partner_group ?? 'Health',
@@ -191,7 +191,7 @@ export async function fetchRecommendedTemplate(
     };
   }
 
-  if (payload.key === 1) {
+  if (payload.key === 1 || payload.key === 2) {
     mapped.variables = {
       partnerName: payload.partner_name,
       protectionScore: 0,
@@ -209,7 +209,7 @@ export function buildTemplatePayload(
   customer: Customer
 ): ReturnType<typeof buildScoreCardPayload> | ReturnType<typeof buildGreetingPayload> | null {
   const apiKey = getSectionApiKey(sectionId);
-  if (apiKey === 1) return buildGreetingPayload(customer);
+  if (apiKey === 1 || apiKey === 2) return buildGreetingPayload(customer);
   if (apiKey === 3) return buildScoreCardPayload(customer);
   return null;
 }
