@@ -3,6 +3,7 @@ import { connectMongo } from './config/mongo';
 import pool from './config/database';
 import app from './app';
 import { registerScoreRecalcHandler } from './modules/events/handlers/score-recalc.handler';
+import { registerInsightsGenerationHandler } from './modules/events/handlers/insights-generation.handler';
 
 async function main() {
   // Connect to MongoDB (optional — AI Chat won't work without it)
@@ -15,6 +16,7 @@ async function main() {
 
   // Register event handlers
   registerScoreRecalcHandler();
+  registerInsightsGenerationHandler();
 
   // Start Express server
   app.listen(env.PORT, () => {

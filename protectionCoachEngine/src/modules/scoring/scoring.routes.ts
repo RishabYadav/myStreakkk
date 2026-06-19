@@ -19,6 +19,9 @@ router.get('/customer/:customerId/simulations', controller.getSimulationHistory)
 // Combined scores
 router.get('/customer/:customerId/both', controller.getBothScores);
 
+// Full profile (everything CustomerFile UI needs in one call)
+router.get('/customer/:customerId/full-profile', controller.getCustomerFullProfile);
+
 // Score history
 router.get('/customer/:customerId/history', controller.getScoreHistory);
 
@@ -30,5 +33,8 @@ router.get('/partner/:partnerId/customers-ranked', controller.getCustomersRanked
 
 // Manual recalculate
 router.post('/customer/:customerId/recalculate', controller.recalculateScores);
+
+// Regenerate AI insights for a customer (manual trigger)
+router.post('/customer/:customerId/regenerate-insights', controller.regenerateInsights);
 
 export default router;

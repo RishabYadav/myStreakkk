@@ -5,6 +5,7 @@ import { colors, fonts, shadows, radius, space, type as typeScale } from '../the
 import { Customer } from '../types';
 import ScorePuck from '../components/ScorePuck';
 import PressableScale from '../components/ui/PressableScale';
+import { Skeleton } from '../components/ui/Skeleton';
 import {
   BreatheView,
   FadeSlideIn,
@@ -13,16 +14,41 @@ import {
   PulseScale,
   ShimmerBand,
 } from '../components/ui/motion';
-import { PARTNER_INTELLIGENCE } from '../mockData';
 
 interface Props {
   customers: Customer[];
+  topOpportunityId?: string | null;
+  loading?: boolean;
   onOpenCustomer: (id: string) => void;
 }
 
-export default function MyCustomers({ customers, onOpenCustomer }: Props) {
+function CustomerListSkeleton() {
+  return (
+    <View style={styles.list}>
+      {[0, 1, 2].map((i) => (
+        <View key={i} style={[styles.card, shadows.card, { padding: space[4] }]}>  
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: space[3] }}>
+            <Skeleton width={48} height={48} style={{ borderRadius: radius.md }} />
+            <View style={{ flex: 1, gap: space[2] }}>
+              <Skeleton width="60%" height={16} />
+              <Skeleton width="80%" height={12} />
+              <View style={{ flexDirection: 'row', gap: space[2], marginTop: space[1] }}>
+                <Skeleton width={90} height={20} style={{ borderRadius: radius.sm }} />
+                <Skeleton width={90} height={20} style={{ borderRadius: radius.sm }} />
+              </View>
+            </View>
+            <Skeleton width={58} height={58} circle />
+          </View>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+export default function MyCustomers({ customers, topOpportunityId, loading, onOpenCustomer }: Props) {
   const sorted = [...customers].sort((a, b) => b.opportunity_score - a.opportunity_score);
-  const topId = PARTNER_INTELLIGENCE.top_opportunity;
+  // Use API-provided top opportunity, or fall back to first in sorted list
+  const topId = topOpportunityId ?? sorted[0]?.customer_id ?? null;
 
   return (
     <ScrollView
@@ -44,6 +70,9 @@ export default function MyCustomers({ customers, onOpenCustomer }: Props) {
         </View>
       </LinearGradient>
 
+      {loading ? (
+        <CustomerListSkeleton />
+      ) : (
       <View style={styles.list}>
         {sorted.map((c, i) => {
           const isAiPick = c.customer_id === topId;
@@ -98,6 +127,7 @@ export default function MyCustomers({ customers, onOpenCustomer }: Props) {
           );
         })}
       </View>
+      )}
     </ScrollView>
   );
 }
