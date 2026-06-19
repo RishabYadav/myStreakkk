@@ -22,6 +22,7 @@ import Toast from '../components/ui/Toast';
 import AccordionToggle from '../components/ui/AccordionToggle';
 import { AnimatedProgressBar, BreatheView, FadeSlideIn, LiveDot, PulseScale, ShimmerBand } from '../components/ui/motion';
 import CustomerAiAssistant from '../components/customer/CustomerAiAssistant';
+import ScoreBreakdownAccordion from '../components/customer/ScoreBreakdownAccordion';
 
 const ANJALI_ID = 'C5501';
 
@@ -151,7 +152,6 @@ export default function ExpansionGlimpse({
   const [extExpiryDate, setExtExpiryDate] = useState('');
   const [extFile, setExtFile] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
-  const [breakdownExpanded, setBreakdownExpanded] = useState(false);
   const [coverageExpanded, setCoverageExpanded] = useState(false);
   const [externalExpanded, setExternalExpanded] = useState(false);
   const dismissToast = useCallback(() => setToast(null), []);
@@ -222,17 +222,11 @@ export default function ExpansionGlimpse({
   };
 
   const breakdownRows = customer.score_breakdown;
-  const visibleBreakdown = breakdownExpanded ? breakdownRows : breakdownRows.slice(0, 3);
-  const breakdownRemaining = Math.max(0, breakdownRows.length - 3);
   const visibleCoverage = coverageExpanded ? customer.coverage : customer.coverage.slice(0, 3);
   const coverageRemaining = Math.max(0, customer.coverage.length - 3);
   const visibleExternal = externalExpanded ? externalPolicies : externalPolicies.slice(0, 3);
   const externalRemaining = Math.max(0, externalPolicies.length - 3);
 
-  const toggleBreakdown = () => {
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    setBreakdownExpanded((v) => !v);
-  };
   const toggleCoverage = () => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     setCoverageExpanded((v) => !v);
@@ -369,34 +363,11 @@ export default function ExpansionGlimpse({
           </FadeSlideIn>
 
           <FadeSlideIn index={1}>
-          <View style={[styles.breakdownCard, shadows.card]}>
-            <Text style={styles.sectionLabel}>My Safety Index Breakdown</Text>
-            {visibleBreakdown.map((row) => {
-              const current = getBreakdownScore(customer, row.key, hasBooked, hasEnriched);
-              const pct = Math.min((current / row.max) * 100, 100);
-              return (
-                <View key={row.key} style={styles.breakdownRow}>
-                  <View style={styles.breakdownTop}>
-                    <Text style={styles.breakdownName}>{LABEL_MAP[row.key] ?? row.name}</Text>
-                    <Text style={styles.breakdownVal}>
-                      {current}/{row.max}
-                    </Text>
-                  </View>
-                  <AnimatedProgressBar
-                    pct={pct}
-                    fillColor={customerTheme.progressFill}
-                    trackColor={customerTheme.progressTrack}
-                    height={6}
-                  />
-                </View>
-              );
-            })}
-            <AccordionToggle
-              expanded={breakdownExpanded}
-              onToggle={toggleBreakdown}
-              remainingCount={breakdownRemaining}
-            />
-          </View>
+          <ScoreBreakdownAccordion
+            rows={breakdownRows}
+            getScore={(key) => getBreakdownScore(customer, key, hasBooked, hasEnriched)}
+            labelMap={LABEL_MAP}
+          />
           </FadeSlideIn>
 
           <FadeSlideIn index={2}>
@@ -693,22 +664,7 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   buyBtnText: { fontFamily: fonts.headingExtra, fontSize: 9.5, color: '#FFF' },
-  breakdownCard: { backgroundColor: colors.white, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: '#E2E8F0' },
   sectionLabel: { fontFamily: fonts.headingExtra, fontSize: 10, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 12 },
-  breakdownRow: { marginBottom: 12 },
-  breakdownTop: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },
-  breakdownName: { fontFamily: fonts.bodyBold, fontSize: 11.5, color: colors.navy },
-  breakdownVal: {
-    fontFamily: fonts.bodyBold,
-    fontSize: 10,
-    color: customerTheme.accentDark,
-    backgroundColor: customerTheme.accentSoft,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 6,
-  },
-  progressTrack: { height: 6, backgroundColor: customerTheme.progressTrack, borderRadius: 3, overflow: 'hidden' },
-  progressFill: { height: '100%', backgroundColor: customerTheme.progressFill, borderRadius: 3 },
   coverageHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: space[2] },
   ssl: { fontFamily: fonts.bodySemi, fontSize: 10, color: customerTheme.accent },
   coverageCard: {

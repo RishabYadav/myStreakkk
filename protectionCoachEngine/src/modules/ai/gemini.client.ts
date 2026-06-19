@@ -1,15 +1,20 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { GoogleGenAI } from '@google/genai';
 import { env } from '../../config/env';
 
-const genAI = new GoogleGenerativeAI(env.GEMINI_API_KEY);
-
-export const geminiModel = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+export const geminiClient = new GoogleGenAI({ apiKey: env.GEMINI_API_KEY });
 
 
 export async function generateResponse(prompt: string, context?: string): Promise<string> {
   const fullPrompt = context ? `${context}\n\n${prompt}` : prompt;
 
-  const result = await geminiModel.generateContent(fullPrompt);
-  const response = result.response;
-  return response.text();
+  const response = await geminiClient.models.generateContent({
+    model: env.GEMINI_MODEL,
+    contents: fullPrompt,
+    config: {
+      temperature: 0.4,
+      maxOutputTokens: 1200,
+      httpOptions: { timeout: env.GEMINI_TIMEOUT_MS },
+    },
+  });
+  return response.text || '';
 }
