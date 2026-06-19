@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
-import { View, Text, Pressable, StyleSheet, Modal } from 'react-native';
+import { View, Text, Pressable, StyleSheet, Modal, ScrollView, useWindowDimensions, NativeSyntheticEvent, NativeScrollEvent } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { colors, fonts, shadows, radius, space, type as typeScale, touch } from '../../theme';
 import PressableScale from '../ui/PressableScale';
@@ -37,6 +39,11 @@ export default function RewardsDesk({ coins, hasBooked, onUpdateCoins, onSelectB
   const [tab, setTab] = useState<RewardsTab>('trophies');
   const [frostProtected, setFrostProtected] = useState(false);
   const [freezeModalOpen, setFreezeModalOpen] = useState(false);
+  const [showScrollHint, setShowScrollHint] = useState(true);
+  const { width: screenWidth } = useWindowDimensions();
+  const scrollPeek = 28;
+  const trophyCardWidth = Math.floor((screenWidth - space[4] * 4 - space[3] - scrollPeek) / 2);
+  const trophySnap = trophyCardWidth + space[3];
 
   const badges: Badge[] = BADGES.map((b) => ({
     ...b,
@@ -60,8 +67,14 @@ export default function RewardsDesk({ coins, hasBooked, onUpdateCoins, onSelectB
     onToast('Streak Freeze Shield is now active and protected.');
   };
 
+  const handleTrophyScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const { contentOffset, layoutMeasurement, contentSize } = event.nativeEvent;
+    const atEnd = contentOffset.x + layoutMeasurement.width >= contentSize.width - 12;
+    setShowScrollHint(!atEnd);
+  };
+
   const renderBadge = (b: Badge) => (
-    <View key={b.id} style={styles.badgeCell}>
+    <View key={b.id} style={[styles.badgeCell, { width: trophyCardWidth }]}>
       <PressableScale
         style={[styles.badgeCard, !b.earned && styles.badgeLocked]}
         onPress={() => {
@@ -113,15 +126,30 @@ export default function RewardsDesk({ coins, hasBooked, onUpdateCoins, onSelectB
 
       <View style={styles.content}>
         {tab === 'trophies' && (
-          <View style={styles.badgeGrid}>
-            <View style={styles.badgeRow}>
-              {renderBadge(badges[0])}
-              {renderBadge(badges[1])}
-            </View>
-            <View style={styles.badgeRow}>
-              {renderBadge(badges[2])}
-              {renderBadge(badges[3])}
-            </View>
+          <View style={styles.trophyScrollWrap}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              decelerationRate="fast"
+              snapToInterval={trophySnap}
+              snapToAlignment="start"
+              scrollEventThrottle={16}
+              onScroll={handleTrophyScroll}
+              contentContainerStyle={styles.badgeScroll}
+            >
+              {badges.map(renderBadge)}
+            </ScrollView>
+            {showScrollHint && badges.length > 2 ? (
+              <View style={styles.scrollHint} pointerEvents="none">
+                <LinearGradient
+                  colors={['rgba(255,255,255,0)', 'rgba(255,255,255,0.85)', colors.surface.card]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={StyleSheet.absoluteFill}
+                />
+                <Feather name="chevron-right" size={18} color="#94A3B8" />
+              </View>
+            ) : null}
           </View>
         )}
 
@@ -240,9 +268,21 @@ const styles = StyleSheet.create({
   tabText: { fontFamily: fonts.bodyBold, fontSize: typeScale.caption.fontSize, color: colors.text.secondary },
   tabTextActive: { color: colors.text.inverse },
   content: { minHeight: 200 },
-  badgeGrid: { gap: space[3] },
-  badgeRow: { flexDirection: 'row', gap: space[3], alignItems: 'stretch' },
-  badgeCell: { flex: 1 },
+  trophyScrollWrap: {
+    position: 'relative',
+  },
+  badgeScroll: { gap: space[3], paddingRight: space[1] },
+  scrollHint: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    width: 44,
+    alignItems: 'flex-end',
+    justifyContent: 'center',
+    paddingRight: 4,
+  },
+  badgeCell: { flexShrink: 0 },
   badgeCard: {
     width: '100%',
     minHeight: 140,

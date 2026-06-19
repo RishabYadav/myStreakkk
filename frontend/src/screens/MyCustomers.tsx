@@ -1,19 +1,13 @@
 import React from 'react';
 import { View, Text, ScrollView, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { colors, fonts, shadows, radius, space, type as typeScale } from '../theme';
+import { Feather } from '@expo/vector-icons';
+import { colors, fonts, radius, space, type as typeScale } from '../theme';
 import { Customer } from '../types';
 import ScorePuck from '../components/ScorePuck';
 import PressableScale from '../components/ui/PressableScale';
 import { Skeleton } from '../components/ui/Skeleton';
-import {
-  BreatheView,
-  FadeSlideIn,
-  FloatView,
-  LiveDot,
-  PulseScale,
-  ShimmerBand,
-} from '../components/ui/motion';
+import { BreatheView, FadeSlideIn, LiveDot, ShimmerBand } from '../components/ui/motion';
 
 interface Props {
   customers: Customer[];
@@ -22,22 +16,47 @@ interface Props {
   onOpenCustomer: (id: string) => void;
 }
 
+function dependentsLabel(customer: Customer): string | null {
+  const line = customer.why.find((w) => /dependent/i.test(w));
+  if (!line) return null;
+  const match = line.match(/\b(two|\d+)\s+dependents?/i);
+  if (!match) return null;
+  const count = match[1].toLowerCase() === 'two' ? '2' : match[1];
+  return `${count} dependents`;
+}
+
+function getAiPickBullets(customer: Customer): string[] {
+  const bullets: string[] = [];
+  if (customer.renewsInDays > 0) {
+    bullets.push(`Renewal due in ${customer.renewsInDays} days`);
+  }
+  if (customer.weak_spots.length > 0) {
+    bullets.push(`Missing ${customer.weak_spots[0]} protection`);
+  }
+  const deps = dependentsLabel(customer);
+  if (deps) bullets.push(deps);
+  if (customer.why.some((w) => /conversion/i.test(w)) || customer.opportunity_score >= 70) {
+    bullets.push('High conversion probability');
+  }
+  return bullets.slice(0, 4);
+}
+
+function formatGapSummary(summary: string) {
+  return summary.replace(/\s·\s/g, ' • ');
+}
+
 function CustomerListSkeleton() {
   return (
     <View style={styles.list}>
       {[0, 1, 2].map((i) => (
-        <View key={i} style={[styles.card, shadows.card, { padding: space[4] }]}>  
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: space[3] }}>
-            <Skeleton width={48} height={48} style={{ borderRadius: radius.md }} />
-            <View style={{ flex: 1, gap: space[2] }}>
-              <Skeleton width="60%" height={16} />
-              <Skeleton width="80%" height={12} />
-              <View style={{ flexDirection: 'row', gap: space[2], marginTop: space[1] }}>
-                <Skeleton width={90} height={20} style={{ borderRadius: radius.sm }} />
-                <Skeleton width={90} height={20} style={{ borderRadius: radius.sm }} />
-              </View>
+        <View key={i} style={styles.card}>
+          <View style={styles.cardInner}>
+            <View style={{ flex: 1, gap: 8 }}>
+              <Skeleton width="55%" height={17} />
+              <Skeleton width="85%" height={14} />
+              <Skeleton width="70%" height={12} />
             </View>
-            <Skeleton width={58} height={58} circle />
+            <Skeleton width={48} height={48} circle />
           </View>
         </View>
       ))}
@@ -76,51 +95,70 @@ export default function MyCustomers({ customers, topOpportunityId, loading, onOp
       <View style={styles.list}>
         {sorted.map((c, i) => {
           const isAiPick = c.customer_id === topId;
+          if (isAiPick) {
+            return (
+              <FadeSlideIn key={c.customer_id} index={i}>
+                <PressableScale
+                  onPress={() => onOpenCustomer(c.customer_id)}
+                  style={styles.cardAiPick}
+                  scaleTo={0.985}
+                >
+                  <View style={styles.aiPickBadge}>
+                    <Feather name="zap" size={12} color="#EA580C" />
+                    <Text style={styles.aiPickBadgeText}>AI picked this customer</Text>
+                  </View>
+
+                  <View style={styles.aiPickHeader}>
+                    <View style={styles.aiPickHeadCopy}>
+                      <Text style={styles.aiPickName}>{c.name}</Text>
+                      <Text style={styles.aiPickSub}>{formatGapSummary(c.gapSummary)}</Text>
+                    </View>
+                    <View style={styles.aiPickScoreRing}>
+                      <Text style={styles.aiPickScoreNum}>{c.opportunity_score}</Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.aiPickList}>
+                    {getAiPickBullets(c).map((item) => (
+                      <View key={item} style={styles.aiPickRow}>
+                        <Feather name="check" size={14} color="#1C1C1E" />
+                        <Text style={styles.aiPickBullet}>{item}</Text>
+                      </View>
+                    ))}
+                  </View>
+                </PressableScale>
+              </FadeSlideIn>
+            );
+          }
+
           return (
             <FadeSlideIn key={c.customer_id} index={i}>
               <PressableScale
                 onPress={() => onOpenCustomer(c.customer_id)}
-                style={[styles.card, shadows.card, isAiPick && styles.cardAi]}
+                style={styles.card}
+                scaleTo={0.985}
               >
-                {isAiPick && (
-                  <>
-                    <ShimmerBand bandWidth={56} duration={2800} style={styles.cardShimmer} />
-                    <BreatheView style={styles.cardAccent} duration={1500} min={0.5} max={1} />
-                  </>
-                )}
-                {isAiPick && (
-                  <View style={styles.aiBanner}>
-                    <LiveDot color="#F59E0B" size={5} />
-                    <PulseScale min={1} max={1.03} duration={1100}>
-                      <Text style={styles.aiBannerText}>AI pick · act now</Text>
-                    </PulseScale>
-                  </View>
-                )}
                 <View style={styles.cardInner}>
-                  <FloatView distance={2} duration={2200} delay={i * 100}>
-                    <LinearGradient colors={c.avatarColors} style={styles.avatar}>
-                      <Text style={styles.avatarText}>{c.initials}</Text>
-                    </LinearGradient>
-                  </FloatView>
                   <View style={styles.info}>
-                    <Text style={styles.name}>{c.name}</Text>
+                    <Text style={styles.name} numberOfLines={1}>
+                      {c.name}
+                    </Text>
                     <Text style={styles.gap} numberOfLines={2}>
                       {c.gapSummary}
                     </Text>
-                    <View style={styles.scoresRow}>
-                      <PulseScale min={1} max={1.04} duration={1400 + i * 100}>
-                        <View style={[styles.osPill, isAiPick && styles.osPillAi]}>
-                          <Text style={styles.osLabel}>Opportunity {c.opportunity_score}</Text>
-                        </View>
-                      </PulseScale>
-                      <View style={styles.pisPill}>
-                        <Text style={styles.pisLabel}>Protection {c.protection_intelligence_score}</Text>
-                      </View>
-                    </View>
+                    <Text style={styles.metrics}>
+                      <Text style={styles.metricLabel}>Opportunity </Text>
+                      <Text style={styles.metricValue}>{c.opportunity_score}</Text>
+                      <Text style={styles.metricSep}> · </Text>
+                      <Text style={styles.metricLabel}>Protection </Text>
+                      <Text style={styles.metricValue}>{c.protection_intelligence_score}</Text>
+                    </Text>
                   </View>
-                  <PulseScale min={1} max={isAiPick ? 1.08 : 1.04} duration={isAiPick ? 1200 : 1800}>
-                    <ScorePuck score={c.protection_intelligence_score} size={58} showLabel />
-                  </PulseScale>
+
+                  <View style={styles.trailing}>
+                    <ScorePuck score={c.protection_intelligence_score} size={50} showLabel />
+                    <Feather name="chevron-right" size={16} color="#C7C7CC" style={styles.chevron} />
+                  </View>
                 </View>
               </PressableScale>
             </FadeSlideIn>
@@ -183,72 +221,161 @@ const styles = StyleSheet.create({
     fontSize: typeScale.caption.fontSize,
     color: colors.text.inverseMuted,
   },
-  list: { padding: space[4], gap: space[3] },
+  list: {
+    paddingHorizontal: space[4],
+    paddingTop: space[3],
+    gap: 10,
+  },
   card: {
     backgroundColor: colors.surface.card,
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    borderColor: colors.border.default,
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: '#D1D1D6',
     overflow: 'hidden',
-    position: 'relative',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 3,
+    elevation: 1,
   },
-  cardAi: {
-    backgroundColor: '#FFFBEB',
-    borderColor: 'rgba(251,191,36,0.35)',
+  cardAiPick: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(245,158,11,0.35)',
+    padding: 16,
+    gap: 14,
+    shadowColor: '#F59E0B',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 2,
   },
-  cardAccent: {
-    position: 'absolute',
-    left: 0,
-    top: 0,
-    bottom: 0,
-    width: 4,
-    backgroundColor: colors.status.warning,
-    borderTopLeftRadius: radius.lg,
-    borderBottomLeftRadius: radius.lg,
-  },
-  cardShimmer: { opacity: 0.35 },
-  aiBanner: {
+  aiPickBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: space[2],
-    paddingVertical: space[2],
-    paddingHorizontal: space[4],
-    backgroundColor: colors.status.warningSoft,
-    borderBottomWidth: 1,
-    borderBottomColor: '#FDE68A',
+    alignSelf: 'flex-start',
+    gap: 6,
+    backgroundColor: '#FEF3C7',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: radius.pill,
   },
-  aiBannerText: {
-    ...typeScale.label,
-    color: '#92400E',
-    textAlign: 'center',
+  aiPickBadgeText: {
+    fontFamily: fonts.bodyBold,
+    fontSize: 10,
+    color: '#C2410C',
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
   },
-  cardInner: { flexDirection: 'row', alignItems: 'center', padding: space[4], gap: space[3] },
-  avatar: {
-    width: 48,
-    height: 48,
-    borderRadius: radius.md,
+  aiPickHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  aiPickHeadCopy: {
+    flex: 1,
+    minWidth: 0,
+    gap: 4,
+  },
+  aiPickName: {
+    fontFamily: fonts.heading,
+    fontSize: 20,
+    lineHeight: 25,
+    color: '#1C1C1E',
+    letterSpacing: -0.35,
+  },
+  aiPickSub: {
+    fontFamily: fonts.body,
+    fontSize: 15,
+    lineHeight: 20,
+    color: '#636366',
+  },
+  aiPickScoreRing: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    borderWidth: 3,
+    borderColor: '#F97316',
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
+    flexShrink: 0,
   },
-  avatarText: { fontFamily: fonts.headingExtra, fontSize: 16, color: colors.text.inverse },
-  info: { flex: 1 },
-  name: { fontFamily: fonts.headingExtra, fontSize: typeScale.body.fontSize, color: colors.text.primary },
-  gap: { ...typeScale.bodySm, color: colors.text.secondary, marginTop: space[1] },
-  scoresRow: { flexDirection: 'row', gap: space[2], marginTop: space[2], flexWrap: 'wrap' },
-  osPill: {
-    backgroundColor: colors.orangeTag,
-    paddingHorizontal: space[2],
-    paddingVertical: space[1],
-    borderRadius: radius.sm,
+  aiPickScoreNum: {
+    fontFamily: fonts.heading,
+    fontSize: 20,
+    color: '#EA580C',
+    fontVariant: ['tabular-nums'],
   },
-  osPillAi: { backgroundColor: '#FEF3C7', borderWidth: 1, borderColor: '#FDE68A' },
-  osLabel: { fontFamily: fonts.bodyBold, fontSize: typeScale.caption.fontSize, color: colors.orangeTagText },
-  pisPill: {
-    backgroundColor: colors.surface.canvasTint,
-    paddingHorizontal: space[2],
-    paddingVertical: space[1],
-    borderRadius: radius.sm,
+  aiPickList: {
+    gap: 10,
+    paddingTop: 2,
   },
-  pisLabel: { fontFamily: fonts.bodyBold, fontSize: typeScale.caption.fontSize, color: colors.text.secondary },
+  aiPickRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  aiPickBullet: {
+    flex: 1,
+    fontFamily: fonts.bodySemi,
+    fontSize: 15,
+    lineHeight: 20,
+    color: '#1C1C1E',
+  },
+  cardInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    gap: 12,
+    minHeight: 72,
+  },
+  info: {
+    flex: 1,
+    minWidth: 0,
+    gap: 3,
+  },
+  name: {
+    fontFamily: fonts.heading,
+    fontSize: 17,
+    lineHeight: 22,
+    color: '#1C1C1E',
+    letterSpacing: -0.25,
+  },
+  gap: {
+    fontFamily: fonts.body,
+    fontSize: 15,
+    lineHeight: 20,
+    color: '#636366',
+  },
+  metrics: {
+    fontSize: 13,
+    lineHeight: 18,
+    marginTop: 5,
+  },
+  metricLabel: {
+    fontFamily: fonts.bodyBold,
+    color: '#1C1C1E',
+  },
+  metricValue: {
+    fontFamily: fonts.heading,
+    fontVariant: ['tabular-nums'],
+    color: '#1C1C1E',
+  },
+  metricSep: {
+    fontFamily: fonts.body,
+    color: '#C7C7CC',
+  },
+  trailing: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+    gap: 2,
+  },
+  chevron: {
+    marginTop: 2,
+  },
 });

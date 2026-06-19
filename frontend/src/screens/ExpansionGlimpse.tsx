@@ -10,17 +10,16 @@ import {
   Linking,
   LayoutAnimation,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { colors, fonts, shadows, radius, space, type as typeScale, touch } from '../theme';
 import { customerTheme } from '../theme/customerTheme';
 import { Customer } from '../types';
-import ScoreRing from '../components/ScoreRing';
+import ScoreMeter from '../components/ScoreMeter';
 import Toast from '../components/ui/Toast';
 import AccordionToggle from '../components/ui/AccordionToggle';
-import { AnimatedProgressBar, BreatheView, FadeSlideIn, LiveDot, PulseScale, ShimmerBand } from '../components/ui/motion';
+import { FadeSlideIn, PulseScale, ShimmerBand } from '../components/ui/motion';
 import CustomerAiAssistant from '../components/customer/CustomerAiAssistant';
 import ScoreBreakdownAccordion from '../components/customer/ScoreBreakdownAccordion';
 
@@ -81,9 +80,18 @@ function getSafetyVerdict(score: number) {
   const tier: ScoreTier =
     score >= 70 ? 'green' : score >= 50 ? 'yellow' : score >= 20 ? 'orange' : 'red';
   const copy = HEADER_COPY[tier];
+  const gaugeTier =
+    tier === 'green'
+      ? { color: '#059669', bg: '#D1FAE5' }
+      : tier === 'yellow'
+        ? { color: '#B45309', bg: '#FEF3C7' }
+        : tier === 'orange'
+          ? { color: '#C2410C', bg: '#FFEDD5' }
+          : { color: '#DC2626', bg: '#FEE2E2' };
   return {
     tier,
     ...copy,
+    ...gaugeTier,
     progressFill: customerTheme.progressFill,
     progressTrack: customerTheme.progressTrack,
     pillText: customerTheme.accentDark,
@@ -160,10 +168,6 @@ export default function ExpansionGlimpse({
 
   const targetScore = getTargetScore(customer, hasBooked, hasEnriched, externalPolicies.length);
   const verdict = getSafetyVerdict(displayScore);
-  const pulseScore =
-    verdict.tier === 'red' ? 1.06 : verdict.tier === 'orange' ? 1.05 : verdict.tier === 'yellow' ? 1.04 : 1.02;
-  const pulseDuration =
-    verdict.tier === 'red' ? 1100 : verdict.tier === 'orange' ? 1250 : verdict.tier === 'yellow' ? 1400 : 1800;
   const showExposureTip = customer.weak_spots.length > 0;
 
   useEffect(() => {
@@ -236,133 +240,88 @@ export default function ExpansionGlimpse({
     setExternalExpanded((v) => !v);
   };
 
+  const exposureBody =
+    customer.customerTip ||
+    (customer.customer_id === ANJALI_ID && !hasBooked
+      ? 'Your family floater quote is ready — Family Care Floater Plan, prepared with Ergo for your review. Closing this gap is your single biggest lift to your protection score.'
+      : 'Maintain verified covers to elevate your protection index. Stay in touch with your designated advisor.');
+
   return (
     <View style={styles.root}>
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <LinearGradient
-          colors={[...verdict.heroGradient]}
-          style={[styles.hero, previewMode && { paddingTop: insets.top + space[2] }]}
-        >
-          <BreatheView
-            style={[styles.heroGlow, { backgroundColor: verdict.heroGlowColor }]}
-            duration={3000}
-            min={0.2}
-            max={0.7}
-          />
-          <View style={previewMode ? styles.heroNavPreview : styles.heroNavSimple}>
+        <View style={[styles.topSection, previewMode && { paddingTop: insets.top + space[2] }]}>
+          <View style={previewMode ? styles.heroNavPreview : styles.portalHeader}>
             {previewMode && onBack ? (
               <Pressable onPress={onBack} style={styles.heroBack} hitSlop={8}>
                 <Feather name="chevron-left" size={22} color={customerTheme.textPrimary} />
               </Pressable>
             ) : null}
             <View style={previewMode ? styles.heroNavCenter : undefined}>
-              <Text style={[styles.portalLabel, { color: verdict.portalLabelColor }]}>
-                CUSTOMER SECURE PORTAL
-              </Text>
+              <Text style={styles.portalLabel}>CUSTOMER SECURE PORTAL</Text>
               <Text style={styles.customerName}>{customer.name}</Text>
             </View>
             {previewMode ? <View style={styles.heroNavSpacer} /> : null}
           </View>
 
-          <View
-            style={[
-              styles.scoreSection,
-              {
-                backgroundColor: verdict.scoreSectionBg,
-                borderWidth: 1,
-                borderColor: verdict.scoreSectionBorder,
-                padding: space[3],
-                marginTop: space[1],
-              },
-            ]}
-          >
-            {verdict.showShimmer && (
-              <ShimmerBand bandWidth={64} duration={2800} style={styles.scoreShimmer} />
-            )}
-            <View style={styles.scoreInfo}>
-              <Text style={[styles.scoreLabel, { color: verdict.scoreLabelColor }]}>
-                My Protection Intelligence Score
-              </Text>
-              <PulseScale min={verdict.tier === 'red' ? 0.98 : 1} max={pulseScore} duration={pulseDuration}>
-                <View
-                  style={[
-                    styles.verdictChip,
-                    {
-                      borderColor: verdict.chipBorder,
-                      backgroundColor: verdict.chipBg,
-                    },
-                  ]}
-                >
-                  <LiveDot color={verdict.accent} size={6} style={styles.verdictLiveDot} />
-                  <Text style={[styles.verdictText, { color: verdict.chipText }]}>{verdict.label}</Text>
-                </View>
-              </PulseScale>
-              <BreatheView min={0.82} max={1} duration={verdict.tier === 'red' ? 1400 : 2200}>
-                <Text style={[styles.scoreHeading, { color: verdict.headingColor }]}>{verdict.heading}</Text>
-              </BreatheView>
-              {verdict.showRiskHint && (
-                <View style={[styles.exposureHint, { borderColor: verdict.chipBorder, backgroundColor: verdict.chipBg }]}>
-                  <Feather name="alert-circle" size={14} color={customerTheme.accent} />
-                  <Text style={[styles.exposureHintText, { color: verdict.chipText }]}>
-                    Tap coverage gaps below to improve your score
-                  </Text>
-                </View>
-              )}
-            </View>
-            <PulseScale min={1} max={pulseScore} duration={verdict.tier === 'red' ? 1200 : 2000}>
-              <ScoreRing
-                score={displayScore}
-                size={112}
-                strokeColor={verdict.ringColor}
-                trackColor={customerTheme.progressTrack}
-                textColor={customerTheme.textPrimary}
-              />
-            </PulseScale>
-          </View>
-        </LinearGradient>
-
-        <View style={styles.body}>
           <FadeSlideIn index={0}>
-          <View style={[styles.tipCard, showExposureTip && styles.tipCardAlert]}>
-            {showExposureTip && <ShimmerBand bandWidth={48} duration={3200} style={styles.tipShimmer} />}
-            <View style={styles.tipHeader}>
-              <PulseScale min={1} max={1.12} duration={showExposureTip ? 1200 : 1800}>
-                <View style={[styles.tipAi, showExposureTip && styles.tipAiAlert]}>
-                  <Text style={styles.tipAiText}>{showExposureTip ? '!' : 'AI'}</Text>
-                </View>
-              </PulseScale>
-              <Text style={styles.tipTitle}>
-                {showExposureTip ? 'Savings Exposure Alert' : 'Your Safe Guard Pro Tip'}
-              </Text>
-              <View style={[styles.tipBadge, showExposureTip && styles.tipBadgeAlert]}>
-                <LiveDot color={showExposureTip ? customerTheme.accent : customerTheme.textMuted} size={4} />
-                <Text style={[styles.tipBadgeText, showExposureTip && styles.tipBadgeTextAlert]}>
-                  {showExposureTip ? 'Action needed' : 'Smart Insight'}
-                </Text>
-              </View>
+            <View style={[styles.scoreCard, shadows.cardLifted]}>
+              <Text style={styles.scoreEyebrow}>My Protection Intelligence Score</Text>
+              <ScoreMeter
+                score={displayScore}
+                width={280}
+                interactive={false}
+                scoreFirst
+                showOutOf100
+                tierLabel={verdict.label}
+                tierColor={verdict.color}
+                tierBg={verdict.bg}
+                subtitle={verdict.heading}
+                scoreColor="#1E3A8A"
+              />
             </View>
-            <Text style={styles.tipBody}>
-              {customer.customerTip || (customer.customer_id === ANJALI_ID && !hasBooked
-                ? 'Savings exposure detected: your motor policy renews in 9 days but you have no health coverage registered. Adding a combined health plan now can save up to 15% on combo premiums.'
-                : 'Maintain verified covers to elevate your protection index. Stay in touch with your designated advisor.')}
-            </Text>
-            {showExposureTip && (
-              <View style={styles.quoteRow}>
-                <Text style={styles.quoteText} numberOfLines={2}>Combined Ergo Floater quote prepared for review</Text>
-                <Pressable
-                  onPress={() => showToastMsg('Opening secure checkout...')}
-                  style={styles.buyBtnAlert}
-                >
-                  <PulseScale min={0.96} max={1.05} duration={900}>
-                    <Text style={styles.buyBtnText}>Buy Now</Text>
-                  </PulseScale>
-                </Pressable>
-              </View>
-            )}
-          </View>
           </FadeSlideIn>
 
           <FadeSlideIn index={1}>
+            <View style={[styles.tipCard, showExposureTip && styles.tipCardAlert]}>
+              {showExposureTip && <ShimmerBand bandWidth={48} duration={3200} style={styles.tipShimmer} />}
+              <View style={styles.tipHeader}>
+                <View style={[styles.tipAi, showExposureTip && styles.tipAiAlert]}>
+                  <Text style={styles.tipAiText}>{showExposureTip ? '!' : 'AI'}</Text>
+                </View>
+                <Text style={styles.tipTitle}>
+                  {showExposureTip ? 'Savings exposure alert' : 'Your Safe Guard Pro Tip'}
+                </Text>
+                <View style={[styles.tipBadge, showExposureTip && styles.tipBadgeAlert]}>
+                  <Text style={[styles.tipBadgeText, showExposureTip && styles.tipBadgeTextAlert]}>
+                    {showExposureTip ? 'Action needed' : 'Smart Insight'}
+                  </Text>
+                </View>
+              </View>
+              <Text style={styles.tipBody}>
+                {showExposureTip ? (
+                  <>
+                    Your family floater quote is ready —{' '}
+                    <Text style={styles.tipBodyBold}>Family Care Floater Plan</Text>, prepared with Ergo for
+                    your review. Closing this gap is your single biggest lift to your protection score.
+                  </>
+                ) : (
+                  exposureBody
+                )}
+              </Text>
+              {showExposureTip && (
+                <Pressable
+                  onPress={() => showToastMsg('Opening secure checkout...')}
+                  style={styles.buyBtnFull}
+                >
+                  <Text style={styles.buyBtnFullText}>Buy now</Text>
+                </Pressable>
+              )}
+            </View>
+          </FadeSlideIn>
+        </View>
+
+        <View style={styles.body}>
+          <FadeSlideIn index={2}>
           <ScoreBreakdownAccordion
             rows={breakdownRows}
             getScore={(key) => getBreakdownScore(customer, key, hasBooked, hasEnriched)}
@@ -370,7 +329,7 @@ export default function ExpansionGlimpse({
           />
           </FadeSlideIn>
 
-          <FadeSlideIn index={2}>
+          <FadeSlideIn index={3}>
           <View style={styles.coverageHeader}>
             <Text style={styles.sectionLabel}>My Active and Unlinked Coverages</Text>
             <Text style={styles.ssl}>Secure</Text>
@@ -524,31 +483,20 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: customerTheme.canvas },
   scroll: { flex: 1 },
   content: { paddingBottom: 110 },
-  hero: {
+  topSection: {
     paddingHorizontal: 20,
     paddingTop: 16,
-    paddingBottom: 24,
-    borderBottomLeftRadius: 32,
-    borderBottomRightRadius: 32,
-    overflow: 'hidden',
-    position: 'relative',
+    paddingBottom: 8,
+    gap: 12,
   },
-  heroGlow: {
-    position: 'absolute',
-    top: -30,
-    left: 0,
-    right: 0,
-    height: 120,
-    backgroundColor: 'rgba(255,255,255,0.07)',
+  portalHeader: {
+    marginBottom: 2,
   },
   heroNavPreview: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 20,
-  },
-  heroNavSimple: {
-    marginBottom: 20,
+    marginBottom: 8,
   },
   heroNavCenter: { flex: 1, alignItems: 'center' },
   heroNavSpacer: { width: 36 },
@@ -560,110 +508,87 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  portalLabel: { fontFamily: fonts.headingExtra, fontSize: 8.5, letterSpacing: 1 },
-  customerName: { fontFamily: fonts.headingExtra, fontSize: 15, color: customerTheme.textPrimary, marginTop: 4 },
-  scoreSection: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    borderRadius: radius.lg,
-    overflow: 'hidden',
-    position: 'relative',
+  portalLabel: {
+    fontFamily: fonts.headingExtra,
+    fontSize: 10,
+    letterSpacing: 1.2,
+    color: '#64748B',
+    textTransform: 'uppercase',
   },
-  scoreShimmer: { opacity: 0.45 },
-  scoreInfo: { flex: 1, paddingRight: 12 },
-  scoreLabel: { fontFamily: fonts.bodyBold, fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.5 },
-  verdictChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    alignSelf: 'flex-start',
-    marginTop: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 5,
+  customerName: {
+    fontFamily: fonts.headingExtra,
+    fontSize: 28,
+    color: '#1E3A8A',
+    letterSpacing: -0.5,
+    marginTop: 4,
+  },
+  scoreCard: {
+    backgroundColor: '#FFFFFF',
     borderRadius: 20,
-    borderWidth: 1,
+    paddingTop: space[4],
+    paddingBottom: space[2],
+    paddingHorizontal: space[3],
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: '#E2E8F0',
   },
-  verdictLiveDot: { marginRight: 6 },
-  verdictText: { fontFamily: fonts.bodyBold, fontSize: 10.5 },
-  scoreHeading: { fontFamily: fonts.bodySemi, fontSize: 12, marginTop: 10, lineHeight: 18 },
-  exposureHint: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space[1],
-    marginTop: space[2],
-    paddingHorizontal: space[2],
-    paddingVertical: space[1],
-    borderRadius: radius.sm,
-    alignSelf: 'flex-start',
-    borderWidth: 1,
+  scoreEyebrow: {
+    fontFamily: fonts.bodyBold,
+    fontSize: 10,
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+    color: '#64748B',
+    marginBottom: space[1],
   },
-  exposureHintIcon: { fontSize: 12 },
-  exposureHintText: {
-    fontFamily: fonts.bodySemi,
-    fontSize: typeScale.caption.fontSize,
-  },
-  body: { padding: 16, gap: 14 },
+  body: { padding: 16, gap: 14, paddingTop: 8 },
   tipCard: {
     backgroundColor: 'rgba(236,253,245,0.7)',
-    borderLeftWidth: 4,
-    borderLeftColor: colors.customerGreen,
     borderRadius: 16,
-    padding: 14,
+    padding: 16,
     overflow: 'hidden',
     position: 'relative',
   },
   tipCardAlert: {
-    backgroundColor: 'rgba(255,251,235,0.95)',
-    borderLeftWidth: 4,
-    borderLeftColor: '#FBBF24',
+    backgroundColor: '#FFFBEB',
     borderWidth: 1,
     borderColor: 'rgba(251,191,36,0.35)',
   },
   tipShimmer: { opacity: 0.35 },
-  tipHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
-  tipAi: { width: 20, height: 20, borderRadius: 10, backgroundColor: colors.customerGreen, alignItems: 'center', justifyContent: 'center' },
-  tipAiAlert: { backgroundColor: '#F59E0B' },
-  tipAiText: { color: '#FFF', fontSize: 9, fontFamily: fonts.headingExtra },
-  tipTitle: { flex: 1, fontFamily: fonts.headingExtra, fontSize: 12, color: colors.navy, textTransform: 'uppercase' },
-  tipBadge: {
-    flexDirection: 'row',
+  tipHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 },
+  tipAi: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: colors.customerGreen,
     alignItems: 'center',
-    gap: 4,
+    justifyContent: 'center',
+  },
+  tipAiAlert: { backgroundColor: '#F59E0B' },
+  tipAiText: { color: '#FFF', fontSize: 14, fontFamily: fonts.headingExtra },
+  tipTitle: {
+    flex: 1,
+    fontFamily: fonts.headingExtra,
+    fontSize: 14,
+    color: '#1E3A8A',
+  },
+  tipBadge: {
     backgroundColor: '#D1FAE5',
-    paddingHorizontal: 6,
-    paddingVertical: 3,
-    borderRadius: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: radius.pill,
   },
   tipBadgeAlert: { backgroundColor: '#FEF3C7', borderWidth: 1, borderColor: 'rgba(251,191,36,0.4)' },
-  tipBadgeText: { fontFamily: fonts.bodyBold, fontSize: 8, color: '#065F46' },
+  tipBadgeText: { fontFamily: fonts.bodyBold, fontSize: 10, color: '#065F46' },
   tipBadgeTextAlert: { color: '#92400E' },
-  tipBody: { fontFamily: fonts.body, fontSize: 11, color: '#475569', lineHeight: 17 },
-  quoteRow: {
-    marginTop: 10,
-    backgroundColor: '#FFF',
+  tipBody: { fontFamily: fonts.body, fontSize: 13, color: '#475569', lineHeight: 20 },
+  tipBodyBold: { fontFamily: fonts.bodyBold, color: '#0F172A' },
+  buyBtnFull: {
+    marginTop: 14,
+    backgroundColor: '#1E3A8A',
     borderRadius: 12,
-    padding: 10,
-    flexDirection: 'row',
+    paddingVertical: 14,
     alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 8,
-    borderWidth: 1,
-    borderColor: '#FDE68A',
   },
-  quoteText: { flex: 1, fontFamily: fonts.body, fontSize: 10, color: colors.body },
-  buyBtn: { backgroundColor: colors.customerGreen, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
-  buyBtnAlert: {
-    backgroundColor: '#F59E0B',
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 8,
-    shadowColor: '#F59E0B',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.35,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  buyBtnText: { fontFamily: fonts.headingExtra, fontSize: 9.5, color: '#FFF' },
+  buyBtnFullText: { fontFamily: fonts.bodyBold, fontSize: 14, color: '#FFF' },
   sectionLabel: { fontFamily: fonts.headingExtra, fontSize: 10, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 12 },
   coverageHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: space[2] },
   ssl: { fontFamily: fonts.bodySemi, fontSize: 10, color: customerTheme.accent },

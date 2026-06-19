@@ -183,7 +183,7 @@ function buildOtherCustomer(
 }
 
 export const INITIAL_AGENT: AgentState = {
-  partner_id: PARTNER_INTELLIGENCE.partner_id,
+  partner_id: 'P001',
   name: PARTNER_INTELLIGENCE.name,
   email: 'rahul.sharma@pbpartners.com',
   streak_day: PARTNER_INTELLIGENCE.streak_day,

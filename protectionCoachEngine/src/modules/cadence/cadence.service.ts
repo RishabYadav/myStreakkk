@@ -63,6 +63,7 @@ export async function generateCadence(request: GenerateCadenceRequest): Promise<
 
 export function createCadenceInputHash(lead: PartnerLead): string {
   const hashInput = {
+    prompt_version: 'cadence-v2-whatsapp',
     customer_id: lead.customer_id,
     profile: {
       life_stage: lead.life_stage,

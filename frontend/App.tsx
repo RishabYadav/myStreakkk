@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState, useRef } from 'react';
-import { View, StyleSheet, Pressable, Text } from 'react-native';
+import { Alert, Linking, View, StyleSheet, Pressable, Text } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useFonts, Sora_700Bold, Sora_800ExtraBold } from '@expo-google-fonts/sora';
@@ -12,8 +12,9 @@ import * as Haptics from 'expo-haptics';
 
 import { colors, fonts, space, radius, type as typeScale } from './src/theme';
 import { AppLoadingSkeleton } from './src/components/ui/Skeleton';
-import { AgentState, Customer, TabId, AppFlow, CustomerTabId } from './src/types';
+import { AgentState, AiSlide, Customer, TabId, AppFlow, CustomerTabId, MissionItem } from './src/types';
 import {
+  CADENCE_AI,
   INITIAL_AGENT,
   INITIAL_CUSTOMERS,
   SCORE_AFTER_BOOKING,
@@ -22,11 +23,18 @@ import {
   getEnrichedBreakdown,
 } from './src/mockData';
 import { postDemoReset, postEvent } from './src/services/api';
-import { fetchCustomersRanked, fetchCustomerFullProfile, reportCoverageEvent } from './src/services/customerApi';
+import {
+  CadenceData,
+  cadenceToInsights,
+  cadenceToMission,
+  fetchCadence,
+  fetchPartnerContact,
+  fetchPartnerIntelligence,
+} from './src/services/partnerApi';
 
 import BottomNav from './src/components/BottomNav';
 import CustomerBottomNav from './src/components/CustomerBottomNav';
-import BookingSheet from './src/components/BookingSheet';
+import OutreachSheet from './src/components/OutreachSheet';
 import QuestionnaireSheet from './src/components/QuestionnaireSheet';
 import EntryScreen from './src/screens/EntryScreen';
 import StreakHome from './src/screens/StreakHome';
@@ -75,41 +83,58 @@ export default function App() {
   const [isLiveData, setIsLiveData] = useState(false);
   const [customersLoading, setCustomersLoading] = useState(true);
   const [profileLoading, setProfileLoading] = useState(false);
+  const [partnerDataLoading, setPartnerDataLoading] = useState(true);
+  const [proactiveInsights, setProactiveInsights] = useState<AiSlide[] | null>(null);
+  const [suggestedMission, setSuggestedMission] = useState<MissionItem | null>(null);
+  const [topCadence, setTopCadence] = useState<CadenceData | null>(null);
 
   const [hasBooked, setHasBooked] = useState(false);
   const [hasEnriched, setHasEnriched] = useState(false);
   const [bookingSheetOpen, setBookingSheetOpen] = useState(false);
+  const [activeOutreachMission, setActiveOutreachMission] = useState<MissionItem | null>(null);
+  const [completedMissionIds, setCompletedMissionIds] = useState<string[]>([]);
+  const [contactActionLoading, setContactActionLoading] = useState<'call' | 'whatsapp' | null>(null);
   const [questionnaireOpen, setQuestionnaireOpen] = useState(false);
   const [customerProfileData, setCustomerProfileData] = useState<{
     talking_points?: string[];
     lesson_recommendations?: { priority: boolean; icon: string; title: string; body: string }[];
   }>({});
 
-  // Fetch real customer data from backend on mount
+  const refreshPartnerData = useCallback(async () => {
+    setCustomersLoading(true);
+    setPartnerDataLoading(true);
+
+    const intelligenceRequest = fetchPartnerIntelligence(agent.partner_id);
+    const cadenceRequest = fetchCadence(agent.partner_id);
+
+    const intelligence = await intelligenceRequest;
+    if (intelligence?.customers.length) {
+      setCustomers(intelligence.customers);
+      setTopOpportunityId(intelligence.topOpportunity);
+      setIsLiveData(true);
+    }
+    setCustomersLoading(false);
+
+    const cadence = await cadenceRequest;
+    if (cadence) {
+      setTopCadence(cadence);
+      setProactiveInsights(cadenceToInsights(cadence));
+      setSuggestedMission(cadenceToMission(cadence));
+    }
+    setPartnerDataLoading(false);
+  }, [agent.partner_id]);
+
   const hasFetched = useRef(false);
   useEffect(() => {
     if (hasFetched.current) return;
     hasFetched.current = true;
-
-    (async () => {
-      setCustomersLoading(true);
-      const result = await fetchCustomersRanked();
-      if (result && result.customers.length > 0) {
-        setCustomers(result.customers);
-        setTopOpportunityId(result.topOpportunity);
-        setIsLiveData(true);
-        console.log(`✅ Loaded ${result.customers.length} customers from API`);
-      } else {
-        console.log('⚠️ API unavailable — using mock data');
-      }
-      setCustomersLoading(false);
-    })();
-  }, []);
+    void refreshPartnerData();
+  }, [refreshPartnerData]);
 
   const anjali = customers.find((c) => c.customer_id === ANJALI_ID) ?? customers[0];
   const targetId = getTargetCustomerId(isLiveData, topOpportunityId);
 
-  // Fetch full profile data when a customer is selected
+  // Fetch customer-specific Cadence guidance when a customer is selected.
   useEffect(() => {
     if (!selectedCustomerId || !isLiveData) {
       setCustomerProfileData({});
@@ -119,26 +144,21 @@ export default function App() {
     let cancelled = false;
     setProfileLoading(true);
     (async () => {
-      const profile = await fetchCustomerFullProfile(selectedCustomerId);
+      const cadence =
+        topCadence?.customer_id === selectedCustomerId
+          ? topCadence
+          : await fetchCadence(agent.partner_id, selectedCustomerId);
       if (cancelled) return;
-      if (profile) {
-        // Update the customer in the list with fresh data
-        setCustomers((prev) =>
-          prev.map((c) =>
-            c.customer_id === selectedCustomerId
-              ? { ...c, ...profile.customer, avatarColors: c.avatarColors }
-              : c
-          )
-        );
+      if (cadence) {
         setCustomerProfileData({
-          talking_points: profile.talking_points,
-          lesson_recommendations: profile.lesson_recommendations,
+          talking_points: cadence.talking_points,
+          lesson_recommendations: cadence.lesson_recommendations,
         });
       }
       setProfileLoading(false);
     })();
     return () => { cancelled = true; };
-  }, [selectedCustomerId, isLiveData]);
+  }, [agent.partner_id, selectedCustomerId, isLiveData, topCadence]);
 
   const getCustomer = (id: string | null) =>
     customers.find((c) => c.customer_id === (id ?? targetId)) ?? customers[0];
@@ -153,42 +173,59 @@ export default function App() {
     setAgent((a) => ({ ...a, coins: a.coins + amount }));
   }, []);
 
-  const handleOpenBooking = () => setBookingSheetOpen(true);
-
-  const handleConfirmBooking = async () => {
-    setBookingSheetOpen(false);
-    await postEvent('BOOKING_EVENT');
-
-    setHasBooked(true);
-    setAgent((a) => ({ ...a, coins: a.coins + 500 }));
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-
-    // Report to backend if we're using live data
-    if (isLiveData) {
-      const topCustomer = customers[0]; // top opportunity
-      await reportCoverageEvent(topCustomer.customer_id, 'health', 'sold_by_agent');
-      // Refresh customer list from API to get updated scores
-      const result = await fetchCustomersRanked();
-      if (result) {
-        setCustomers(result.customers);
-        setTopOpportunityId(result.topOpportunity);
-      }
-    } else {
-      updateAnjali({
-        protection_intelligence_score: SCORE_AFTER_BOOKING,
-        score_breakdown: getBookingBreakdown(
-          INITIAL_CUSTOMERS[0].score_breakdown.map((r) => ({ ...r }))
-        ),
-        coverage: INITIAL_CUSTOMERS[0].coverage.map((row) =>
-          row.id === 'health' ? { ...row, covered: true, source: 'sold_by_agent' } : { ...row }
-        ),
-      });
-    }
-
-    setSelectedCustomerId(targetId);
-    setActiveTab('customers');
+  const handleOpenBooking = (mission: MissionItem) => {
+    setActiveOutreachMission(mission);
+    setBookingSheetOpen(true);
   };
 
+  const handleCloseOutreach = () => {
+    setBookingSheetOpen(false);
+    setActiveOutreachMission(null);
+  };
+
+  const handleContactAction = async (mode: 'call' | 'whatsapp') => {
+    const customer = getCustomer(targetId);
+    setContactActionLoading(mode);
+    const contact = await fetchPartnerContact(agent.partner_id, customer.customer_id);
+
+    if (!contact) {
+      setContactActionLoading(null);
+      Alert.alert('Contact unavailable', `No phone number is available for ${customer.name}.`);
+      return;
+    }
+
+    const digits = contact.phone.replace(/\D/g, '');
+    const internationalDigits = digits.length === 10 ? `91${digits}` : digits;
+    const phoneNumber = digits.length === 10 ? `+91${digits}` : `+${digits}`;
+    const firstName = contact.name.split(' ')[0];
+    const whatsappMessage = topCadence?.whatsapp_message ?? (
+      "Hi " + firstName + ",\n\n" + CADENCE_AI.coach_tip +
+      "\n\nWould you be available for a quick 10-minute call today to review this together?"
+    );
+
+    try {
+      if (mode === 'call') {
+        await Linking.openURL(`tel:${phoneNumber}`);
+      } else {
+        await Linking.openURL(
+          `https://wa.me/${internationalDigits}?text=${encodeURIComponent(whatsappMessage)}`
+        );
+      }
+      if (activeOutreachMission && !completedMissionIds.includes(activeOutreachMission.id)) {
+        setCompletedMissionIds((current) => [...current, activeOutreachMission.id]);
+        handleUpdateCoins(activeOutreachMission.coins);
+        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
+      handleCloseOutreach();
+    } catch {
+      Alert.alert(
+        mode === 'call' ? 'Unable to open dialer' : 'Unable to open WhatsApp',
+        'Please check that a compatible calling or WhatsApp application is available.'
+      );
+    } finally {
+      setContactActionLoading(null);
+    }
+  };
   const handleQuestionnaireSubmit = async (termYes: boolean) => {
     setQuestionnaireOpen(false);
     if (!termYes) return;
@@ -197,16 +234,7 @@ export default function App() {
     setHasEnriched(true);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
-    if (isLiveData) {
-      const topCustomer = customers[0];
-      await reportCoverageEvent(topCustomer.customer_id, 'term', 'added_by_agent');
-      // Refresh customer list from API
-      const result = await fetchCustomersRanked();
-      if (result) {
-        setCustomers(result.customers);
-        setTopOpportunityId(result.topOpportunity);
-      }
-    } else {
+    if (!isLiveData) {
       updateAnjali({
         protection_intelligence_score: SCORE_AFTER_QUESTIONNAIRE,
         score_breakdown: getEnrichedBreakdown(
@@ -226,6 +254,8 @@ export default function App() {
     setAgent({ ...INITIAL_AGENT });
     setHasBooked(false);
     setHasEnriched(false);
+    setCompletedMissionIds([]);
+    setActiveOutreachMission(null);
     setSelectedCustomerId(null);
     setShowExpansion(false);
     setBookingSheetOpen(false);
@@ -236,16 +266,7 @@ export default function App() {
     setIsOffline(false);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
-    // Try to re-fetch from API (data may have been reset on backend too)
-    const result = await fetchCustomersRanked();
-    if (result && result.customers.length > 0) {
-      setCustomers(result.customers);
-      setTopOpportunityId(result.topOpportunity);
-      setIsLiveData(true);
-    } else {
-      setCustomers(cloneCustomers(INITIAL_CUSTOMERS));
-      setIsLiveData(false);
-    }
+    await refreshPartnerData();
   };
 
   const handleSelectFlow = (flow: Exclude<AppFlow, 'entry'>) => {
@@ -303,8 +324,8 @@ export default function App() {
         showExpansion={showExpansion}
         isOffline={isOffline}
         hasBooked={hasBooked}
+        completedMissionIds={completedMissionIds}
         hasEnriched={hasEnriched}
-        bookingSheetOpen={bookingSheetOpen}
         questionnaireOpen={questionnaireOpen}
         anjali={anjali}
         targetId={targetId}
@@ -312,6 +333,9 @@ export default function App() {
         profileLoading={profileLoading}
         customerProfileData={customerProfileData}
         topOpportunityId={topOpportunityId}
+        proactiveInsights={proactiveInsights}
+        suggestedMission={suggestedMission}
+        partnerDataLoading={partnerDataLoading}
         getCustomer={getCustomer}
         onTabChange={handleTabChange}
         onCustomerTabChange={setCustomerTab}
@@ -321,12 +345,20 @@ export default function App() {
         onOpenBooking={handleOpenBooking}
         onUpdateCoins={handleUpdateCoins}
         onToggleOffline={() => setIsOffline((v) => !v)}
-        onCloseBooking={() => setBookingSheetOpen(false)}
-        onConfirmBooking={handleConfirmBooking}
         onCloseQuestionnaire={() => setQuestionnaireOpen(false)}
         onQuestionnaireSubmit={handleQuestionnaireSubmit}
         onOpenQuestionnaire={() => setQuestionnaireOpen(true)}
         onDemoReset={handleDemoReset}
+        onRefreshPartnerData={refreshPartnerData}
+      />
+      <OutreachSheet
+        visible={bookingSheetOpen}
+        customerName={getCustomer(targetId).name}
+        talkingPoints={topCadence?.talking_points ?? CADENCE_AI.talking_points}
+        actionLoading={contactActionLoading}
+        onClose={handleCloseOutreach}
+        onCall={() => void handleContactAction('call')}
+        onWhatsApp={() => void handleContactAction('whatsapp')}
       />
     </SafeAreaProvider>
   );
@@ -342,8 +374,8 @@ interface MainShellProps {
   showExpansion: boolean;
   isOffline: boolean;
   hasBooked: boolean;
+  completedMissionIds: string[];
   hasEnriched: boolean;
-  bookingSheetOpen: boolean;
   questionnaireOpen: boolean;
   anjali: Customer;
   targetId: string;
@@ -354,21 +386,23 @@ interface MainShellProps {
     lesson_recommendations?: { priority: boolean; icon: string; title: string; body: string }[];
   };
   topOpportunityId: string | null;
+  proactiveInsights: AiSlide[] | null;
+  suggestedMission: MissionItem | null;
+  partnerDataLoading: boolean;
   getCustomer: (id: string | null) => Customer;
   onTabChange: (tab: TabId) => void;
   onCustomerTabChange: (tab: CustomerTabId) => void;
   onSwitchExperience: () => void;
   onSelectCustomer: (id: string | null) => void;
   onShowExpansion: (show: boolean) => void;
-  onOpenBooking: () => void;
+  onOpenBooking: (mission: MissionItem) => void;
   onUpdateCoins: (amount: number) => void;
   onToggleOffline: () => void;
-  onCloseBooking: () => void;
-  onConfirmBooking: () => void;
   onCloseQuestionnaire: () => void;
   onQuestionnaireSubmit: (termYes: boolean) => void;
   onOpenQuestionnaire: () => void;
   onDemoReset: () => void;
+  onRefreshPartnerData: () => Promise<void>;
 }
 
 function MainShell({
@@ -381,8 +415,8 @@ function MainShell({
   showExpansion,
   isOffline,
   hasBooked,
+  completedMissionIds,
   hasEnriched,
-  bookingSheetOpen,
   questionnaireOpen,
   anjali,
   targetId,
@@ -390,6 +424,9 @@ function MainShell({
   profileLoading,
   customerProfileData,
   topOpportunityId,
+  proactiveInsights,
+  suggestedMission,
+  partnerDataLoading,
   getCustomer,
   onTabChange,
   onCustomerTabChange,
@@ -399,12 +436,11 @@ function MainShell({
   onOpenBooking,
   onUpdateCoins,
   onToggleOffline,
-  onCloseBooking,
-  onConfirmBooking,
   onCloseQuestionnaire,
   onQuestionnaireSubmit,
   onOpenQuestionnaire,
   onDemoReset,
+  onRefreshPartnerData,
 }: MainShellProps) {
   const isCustomerFlow = appFlow === 'customer';
   const hideNav = Boolean(selectedCustomerId) || showExpansion;
@@ -476,10 +512,15 @@ function MainShell({
           <StreakHome
             agent={agent}
             hasBooked={hasBooked}
+            completedMissionIds={completedMissionIds}
             onOpenBooking={onOpenBooking}
             onUpdateCoins={onUpdateCoins}
             onDemoReset={onDemoReset}
             onBack={onSwitchExperience}
+            proactiveInsights={proactiveInsights}
+            suggestedMission={suggestedMission}
+            dataLoading={partnerDataLoading}
+            onRefreshData={onRefreshPartnerData}
           />
         );
       case 'grow':
@@ -494,14 +535,7 @@ function MainShell({
           />
         );
       case 'profile':
-        return (
-          <Profile
-            agent={agent}
-            isOffline={isOffline}
-            onToggleOffline={onToggleOffline}
-            onSwitchExperience={onSwitchExperience}
-          />
-        );
+        return <Profile agent={agent} />;
       default:
         return null;
     }
@@ -538,7 +572,6 @@ function MainShell({
       ) : (
         <BottomNav activeTab={activeTab} onTabChange={onTabChange} visible={!hideNav} />
       )}
-      <BookingSheet visible={bookingSheetOpen} onClose={onCloseBooking} onConfirm={onConfirmBooking} />
       <QuestionnaireSheet
         visible={questionnaireOpen}
         onClose={onCloseQuestionnaire}

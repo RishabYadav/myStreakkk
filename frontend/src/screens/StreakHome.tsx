@@ -20,7 +20,7 @@ import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { colors, fonts, shadows, radius, space, type as typeScale, touch } from '../theme';
-import { AgentState, MissionItem } from '../types';
+import { AgentState, AiSlide, MissionItem } from '../types';
 import { AI_SLIDES, ACTIVE_MISSIONS, FALLBACK_MISSIONS } from '../mockData';
 import { formatCountdown } from '../utils';
 import { getTimeGreeting } from '../utils/timeGreeting';
@@ -44,10 +44,15 @@ import {
 interface Props {
   agent: AgentState;
   hasBooked: boolean;
-  onOpenBooking: () => void;
+  completedMissionIds: string[];
+  onOpenBooking: (mission: MissionItem) => void;
   onUpdateCoins: (amount: number) => void;
   onDemoReset: () => void;
   onBack: () => void;
+  proactiveInsights?: AiSlide[] | null;
+  suggestedMission?: MissionItem | null;
+  dataLoading?: boolean;
+  onRefreshData?: () => Promise<void>;
 }
 
 const MILESTONES = [
@@ -73,19 +78,18 @@ const SLIDE_W = SCREEN_W - space[4] * 2 - space[3] * 2;
 
 function SwipeableMission({
   mission,
-  hasBooked,
+  completed,
   index,
   onPress,
   onDismiss,
 }: {
   mission: MissionItem;
-  hasBooked: boolean;
+  completed: boolean;
   index: number;
   onPress: () => void;
   onDismiss: () => void;
 }) {
-  const isCompleted =
-    (mission.id === 'ai-combo' || mission.id === 'book-policy') && hasBooked;
+  const isCompleted = completed;
   const isSuggested = !!mission.urgent && !isCompleted;
   const pan = useRef(new Animated.ValueXY()).current;
   const dismissOpacity = useRef(new Animated.Value(0.35)).current;
@@ -204,13 +208,19 @@ function SwipeableMission({
 export default function StreakHome({
   agent,
   hasBooked,
+  completedMissionIds,
   onOpenBooking,
   onUpdateCoins,
   onDemoReset,
   onBack,
+  proactiveInsights,
+  suggestedMission,
+  dataLoading,
+  onRefreshData,
 }: Props) {
   const insets = useSafeAreaInsets();
   const timeGreeting = useMemo(() => getTimeGreeting(), []);
+  const insightSlides = proactiveInsights?.length ? proactiveInsights : AI_SLIDES;
   const [timer, setTimer] = useState(81574);
   const [slideIdx, setSlideIdx] = useState(0);
   const [activeMissions, setActiveMissions] = useState<MissionItem[]>(ACTIVE_MISSIONS);
@@ -233,13 +243,29 @@ export default function StreakHome({
   useEffect(() => {
     const id = setInterval(() => {
       setSlideIdx((prev) => {
-        const next = (prev + 1) % AI_SLIDES.length;
+        const next = (prev + 1) % insightSlides.length;
         carouselRef.current?.scrollToIndex({ index: next, animated: true });
         return next;
       });
     }, 4500);
     return () => clearInterval(id);
-  }, []);
+  }, [insightSlides.length]);
+
+  useEffect(() => {
+    setSlideIdx(0);
+    carouselRef.current?.scrollToIndex({ index: 0, animated: false });
+  }, [insightSlides]);
+
+  useEffect(() => {
+    if (!suggestedMission) return;
+    setActiveMissions((current) => {
+      const existingIndex = current.findIndex((mission) => mission.id === 'ai-combo');
+      if (existingIndex === -1) return [suggestedMission, ...current];
+      const next = [...current];
+      next[existingIndex] = suggestedMission;
+      return next;
+    });
+  }, [suggestedMission]);
 
   useEffect(() => {
     if (hasBooked) Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -248,21 +274,20 @@ export default function StreakHome({
   const dismissToast = useCallback(() => setToast(null), []);
   const showToast = useCallback((msg: string) => setToast(msg), []);
 
-  const handleRefresh = () => {
+  const handleRefresh = async () => {
     setRefreshing(true);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    showToast('🔄 Syncing latest agent metrics and AI-driven client insights...');
-    setTimeout(() => {
-      setRefreshing(false);
-      showToast('✨ Metrics fully synced! High conversion opportunities updated.');
-    }, 1500);
+    showToast('🔄 Syncing latest customers, missions, and insights...');
+    await onRefreshData?.();
+    setRefreshing(false);
+    showToast('✨ Partner intelligence and Cadence guidance updated.');
   };
 
   const handleDismissMission = (id: string) => {
     const idx = activeMissions.findIndex((m) => m.id === id);
     if (idx === -1) return;
     const mission = activeMissions[idx];
-    const isCompleted = (mission.id === 'ai-combo' || mission.id === 'book-policy') && hasBooked;
+    const isCompleted = completedMissionIds.includes(mission.id);
     if (isCompleted) {
       showToast('Completed missions cannot be dismissed.');
       return;
@@ -282,7 +307,7 @@ export default function StreakHome({
 
   const handleMissionPress = (mission: MissionItem) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    if (mission.id === 'ai-combo' || mission.id === 'book-policy') onOpenBooking();
+    if (mission.id === 'ai-combo') onOpenBooking(mission);
     else if (mission.id === 'create-lead') setLeadOpen(true);
     else showToast(`🎯 Action in progress: "${mission.title}"!`);
   };
@@ -312,7 +337,7 @@ export default function StreakHome({
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={colors.brandBlue} />
+          <RefreshControl refreshing={refreshing || !!dataLoading} onRefresh={handleRefresh} tintColor={colors.brandBlue} />
         }
       >
         <LinearGradient colors={[...colors.partner.hero]} style={styles.hero}>
@@ -428,7 +453,7 @@ export default function StreakHome({
           <View style={[styles.aiCard, shadows.card]}>
             <FlatList
               ref={carouselRef}
-              data={AI_SLIDES}
+              data={insightSlides}
               horizontal
               pagingEnabled
               showsHorizontalScrollIndicator={false}
@@ -441,10 +466,14 @@ export default function StreakHome({
                 <View style={[styles.slide, { width: SLIDE_W }]}>
                   <View style={styles.aiHeader}>
                     <PulseScale min={1} max={1.12} duration={1800}>
-                      <View style={styles.aiBadge}><Text style={styles.aiBadgeText}>AI</Text></View>
+                      <View style={styles.aiBadge}>
+                        <Text style={[styles.aiBadgeText, item.icon && styles.aiBadgeIcon]}>
+                          {item.icon ?? 'AI'}
+                        </Text>
+                      </View>
                     </PulseScale>
                     <View style={styles.aiTitleWrap}>
-                      <Text style={styles.aiLabel}>Proactive Insight</Text>
+                      <Text style={styles.aiLabel}>{dataLoading ? 'Syncing insight' : 'Proactive Insight'}</Text>
                       <Text style={styles.aiTitle} numberOfLines={2}>{item.title}</Text>
                     </View>
                     <View style={styles.aiTag}><Text style={styles.aiTagText}>{item.badge}</Text></View>
@@ -454,7 +483,7 @@ export default function StreakHome({
               )}
             />
             <View style={styles.carouselFooter}>
-              {AI_SLIDES.map((_, i) => (
+              {insightSlides.map((_, i) => (
                 <Pressable
                   key={i}
                   onPress={() => {
@@ -491,7 +520,7 @@ export default function StreakHome({
                 key={m.id}
                 mission={m}
                 index={i}
-                hasBooked={hasBooked}
+                completed={completedMissionIds.includes(m.id)}
                 onPress={() => handleMissionPress(m)}
                 onDismiss={() => handleDismissMission(m.id)}
               />
@@ -744,6 +773,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   aiBadgeText: { color: colors.text.inverse, fontSize: 10, fontFamily: fonts.headingExtra },
+  aiBadgeIcon: { fontSize: 14 },
   aiTitleWrap: { flex: 1 },
   aiLabel: { ...typeScale.label, color: colors.partner.accent },
   aiTitle: { fontFamily: fonts.headingExtra, fontSize: typeScale.bodySm.fontSize, color: colors.text.primary, marginTop: 2 },
