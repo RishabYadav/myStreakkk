@@ -21,6 +21,7 @@ import { colors, fonts, radius, space, type as typeScale } from '../../theme';
 import { customerTheme } from '../../theme/customerTheme';
 import { Customer } from '../../types';
 import { postCustomerAiChat, AiChatTurn } from '../../services/api';
+import { FormattedChatText } from '../../utils/formatChatText';
 import AiOrbLogo from './AiOrbLogo';
 import { BreatheView, FadeSlideIn, LiveDot, PulseScale } from '../ui/motion';
 
@@ -108,7 +109,12 @@ function MessageBubble({ item, index }: { item: ChatMessage; index: number }) {
               style={StyleSheet.absoluteFill}
             />
           )}
-          <Text style={[styles.bubbleText, isUser && styles.bubbleTextUser]}>{item.content}</Text>
+          <FormattedChatText
+            style={[styles.bubbleText, isUser && styles.bubbleTextUser]}
+            boldStyle={isUser ? styles.bubbleTextUserBold : styles.bubbleTextBold}
+          >
+            {item.content}
+          </FormattedChatText>
         </View>
       </View>
     </FadeSlideIn>
@@ -133,7 +139,7 @@ export default function CustomerAiAssistant({ customer, bottomOffset = 64 }: Pro
         {
           id: 'welcome',
           role: 'assistant',
-          content: welcomeMessage.replace(/\*\*/g, ''),
+          content: welcomeMessage,
         },
       ]);
     }
@@ -449,7 +455,9 @@ const styles = StyleSheet.create({
     color: colors.text.primary,
     lineHeight: 20,
   },
+  bubbleTextBold: { fontFamily: fonts.bodyBold },
   bubbleTextUser: { color: '#FFF' },
+  bubbleTextUserBold: { fontFamily: fonts.bodyBold, color: '#FFF' },
   typingRow: { marginTop: space[2], gap: space[1] },
   typingBubble: {
     flexDirection: 'row',
