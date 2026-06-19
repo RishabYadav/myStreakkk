@@ -6,8 +6,14 @@ from google.genai import errors as genai_errors
 from google.genai import types
 from pydantic import BaseModel
 
+from openai_image import generate_poster_image as generate_openai_poster_image
 from partners import Partner
 from prompts import SYSTEM_PROMPT, build_image_prompt, build_user_prompt
+from score_card_prompts import (
+    build_protection_score_image_prompt,
+    build_score_card_content,
+    format_current_date,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +37,7 @@ class PosterImage(BaseModel):
 
 
 class ShareableContentResult(BaseModel):
+    key: int
     partner_code: str
     is_birthday_today: bool
     content: ShareableContent
@@ -52,7 +59,7 @@ def generate_content(client: genai.Client, partner: Partner) -> ShareableContent
     return ShareableContent.model_validate_json(response.text)
 
 
-def generate_poster_image(
+def generate_gemini_poster_image(
     client: genai.Client, image_prompt: str
 ) -> tuple[PosterImage | None, str | None]:
     try:
@@ -94,14 +101,14 @@ def generate_poster_image(
     return None, "Image generation returned no image data."
 
 
-def generate_shareable_content(
+def generate_wishing_content(
     client: genai.Client, partner: Partner, include_poster: bool = False
 ) -> ShareableContentResult:
     content = generate_content(client, partner)
     poster_image = None
     poster_error = None
     if include_poster:
-        poster_image, poster_error = generate_poster_image(
+        poster_image, poster_error = generate_gemini_poster_image(
             client,
             build_image_prompt(
                 content.image_prompt,
@@ -114,9 +121,76 @@ def generate_shareable_content(
         )
 
     return ShareableContentResult(
+        key=1,
         partner_code=partner.partner_code,
         is_birthday_today=partner.is_birthday_today,
         content=content,
         poster_image=poster_image,
         poster_error=poster_error,
     )
+
+
+def generate_protection_score_card(
+    partner_code: str,
+    partner_name: str,
+    protection_score: int,
+    insight_text: str,
+    current_date: str | None = None,
+) -> ShareableContentResult:
+    resolved_date = current_date or format_current_date()
+    image_prompt = build_protection_score_image_prompt(
+        partner_name=partner_name,
+        protection_score=protection_score,
+        current_date=resolved_date,
+        insight_text=insight_text,
+    )
+    content_fields = build_score_card_content(
+        partner_name=partner_name,
+        protection_score=protection_score,
+        insight_text=insight_text,
+        image_prompt=image_prompt,
+    )
+    content = ShareableContent.model_validate(content_fields)
+
+    poster_image = None
+    poster_error = None
+    image_data, error = generate_openai_poster_image(image_prompt)
+    if image_data:
+        poster_image = PosterImage.model_validate(image_data)
+    else:
+        poster_error = error
+
+    return ShareableContentResult(
+        key=3,
+        partner_code=partner_code,
+        is_birthday_today=False,
+        content=content,
+        poster_image=poster_image,
+        poster_error=poster_error,
+    )
+
+
+def generate_shareable_content(
+    client: genai.Client,
+    partner: Partner,
+    *,
+    key: int = 1,
+    include_poster: bool = False,
+    protection_score: int | None = None,
+    insight_text: str | None = None,
+    current_date: str | None = None,
+) -> ShareableContentResult:
+    if key == 3:
+        if protection_score is None:
+            raise ValueError("protectionScore is required when key=3")
+        if not insight_text:
+            raise ValueError("insight_text is required when key=3")
+        return generate_protection_score_card(
+            partner_code=partner.partner_code,
+            partner_name=partner.partner_name,
+            protection_score=protection_score,
+            insight_text=insight_text,
+            current_date=current_date,
+        )
+
+    return generate_wishing_content(client, partner, include_poster=include_poster)

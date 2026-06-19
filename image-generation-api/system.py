@@ -3,7 +3,7 @@ import os
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from google import genai
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from content_engine import ShareableContentResult, generate_shareable_content
 from partners import PARTNER_DEFAULTS, Partner, resolve_top_product
@@ -24,17 +24,24 @@ def get_client() -> genai.Client:
 
 
 class GenerateContentRequest(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    key: int = Field(
+        default=1,
+        examples=[1],
+        description="1 = happy wishing content, 3 = protection score card image",
+    )
     partner_code: str = Field(..., examples=["12314"])
     partner_name: str = Field(..., examples=["Abhishek"])
-    partner_group: str = Field(
-        ...,
+    partner_group: str | None = Field(
+        default=None,
         examples=["Health"],
-        description="Partner vertical: Health, SME, Motor, Life, Travel, etc.",
+        description="Required for key=1. Partner vertical: Health, SME, Motor, Life, Travel, etc.",
     )
-    partner_dob: str = Field(
-        ...,
+    partner_dob: str | None = Field(
+        default=None,
         examples=["1990-05-15"],
-        description="Partner date of birth (YYYY-MM-DD). If birthday is today, a birthday card is generated first.",
+        description="Required for key=1. Partner date of birth (YYYY-MM-DD).",
     )
     partner_phone_number: str | None = Field(
         default=None,
@@ -57,27 +64,68 @@ class GenerateContentRequest(BaseModel):
     monthly_renewals: int | None = Field(default=None, examples=[20])
     include_poster: bool = Field(
         default=False,
-        description=(
-            "Generate poster via Nano Banana. Requires a paid Gemini API plan; "
-            "free tier often has no image quota."
-        ),
+        description="For key=1: generate wishing poster via Gemini. key=3 always generates score card image.",
     )
+    protection_score: int | None = Field(
+        default=None,
+        alias="protectionScore",
+        ge=0,
+        le=100,
+        examples=[62],
+        description="Required for key=3. Protection score from 0 to 100.",
+    )
+    insight_text: str | None = Field(
+        default=None,
+        examples=["Health & term gaps hold you back"],
+        description="Required for key=3. Short insight shown on the score card.",
+    )
+    current_date: str | None = Field(
+        default=None,
+        examples=["20 Jun 2026"],
+        description="Optional for key=3. Defaults to today's date.",
+    )
+    user_prompt: str | None = Field(
+        default=None,
+        description="Optional extra instructions (key=1 wishing flow).",
+    )
+
+    @model_validator(mode="after")
+    def validate_key_requirements(self) -> "GenerateContentRequest":
+        if self.key not in (1, 3):
+            raise ValueError("key must be 1 (wishing) or 3 (protection score card)")
+
+        if self.key == 1:
+            if not self.partner_group:
+                raise ValueError("partner_group is required when key=1")
+            if not self.partner_dob:
+                raise ValueError("partner_dob is required when key=1")
+            return self
+
+        if self.protection_score is None:
+            raise ValueError("protectionScore is required when key=3")
+        if not self.insight_text or not self.insight_text.strip():
+            raise ValueError("insight_text is required when key=3")
+        return self
 
 
 def build_partner_from_request(request: GenerateContentRequest) -> Partner:
     defaults = PARTNER_DEFAULTS.get(request.partner_code)
+    partner_group = request.partner_group or (
+        defaults.partner_group if defaults else "Health"
+    )
 
     return Partner(
         partner_name=request.partner_name,
         partner_code=request.partner_code,
-        partner_group=request.partner_group,
-        partner_dob=request.partner_dob,
+        partner_group=partner_group,
+        partner_dob=request.partner_dob
+        or (defaults.partner_dob if defaults else "1990-01-01"),
         city=request.city or (defaults.city if defaults else "Delhi"),
         experience_years=request.experience_years
         if request.experience_years is not None
         else (defaults.experience_years if defaults else 1),
         top_product=resolve_top_product(
-            request.partner_group,
+            partner_group,
             request.top_product or (defaults.top_product if defaults else None),
         ),
         monthly_booking=request.monthly_booking
@@ -109,9 +157,27 @@ def health():
 @app.post("/generate-content", response_model=ShareableContentResult)
 def generate_content(request: GenerateContentRequest):
     partner = build_partner_from_request(request)
+
+    if request.key == 3:
+        openai_key = os.environ.get("OPENAI_API_KEY")
+        if not openai_key:
+            raise HTTPException(
+                status_code=500,
+                detail="OPENAI_API_KEY environment variable is not set (required for key=3)",
+            )
+        return generate_shareable_content(
+            get_client(),
+            partner,
+            key=3,
+            protection_score=request.protection_score,
+            insight_text=request.insight_text.strip(),
+            current_date=request.current_date,
+        )
+
     client = get_client()
     return generate_shareable_content(
         client,
         partner,
+        key=1,
         include_poster=request.include_poster,
     )

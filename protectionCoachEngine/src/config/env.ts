@@ -1,5 +1,25 @@
 import dotenv from 'dotenv';
-dotenv.config();
+import fs from 'fs';
+import path from 'path';
+
+function loadEnvFile(): void {
+  const candidates = [
+    path.resolve(__dirname, '../../.env'),
+    path.resolve(process.cwd(), '.env'),
+    path.resolve(process.cwd(), 'protectionCoachEngine/.env'),
+  ];
+
+  for (const envPath of candidates) {
+    if (fs.existsSync(envPath)) {
+      dotenv.config({ path: envPath });
+      return;
+    }
+  }
+
+  dotenv.config();
+}
+
+loadEnvFile();
 
 interface EnvConfig {
   DATABASE_URL: string;
@@ -8,6 +28,7 @@ interface EnvConfig {
   GEMINI_MODEL: string;
   GEMINI_TIMEOUT_MS: number;
   GEMINI_MAX_RETRIES: number;
+  PYTHON_API_BASE_URL: string;
   PORT: number;
   NODE_ENV: string;
 }
@@ -28,6 +49,7 @@ function validateEnv(): EnvConfig {
     GEMINI_MODEL: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
     GEMINI_TIMEOUT_MS: parsePositiveInt(process.env.GEMINI_TIMEOUT_MS, 15000),
     GEMINI_MAX_RETRIES: Math.min(parsePositiveInt(process.env.GEMINI_MAX_RETRIES, 2), 2),
+    PYTHON_API_BASE_URL: process.env.PYTHON_API_BASE_URL || 'http://127.0.0.1:8000',
     PORT: parseInt(process.env.PORT || '3000', 10),
     NODE_ENV: process.env.NODE_ENV || 'development',
   };

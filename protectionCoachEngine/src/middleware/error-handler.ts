@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
+import { PythonApiError } from '../utils/python-api.client';
 
 export interface AppError extends Error {
   statusCode?: number;
@@ -11,6 +12,15 @@ export function errorHandler(
   res: Response,
   _next: NextFunction
 ): void {
+  if (err instanceof PythonApiError) {
+    res.status(err.statusCode).json({
+      success: false,
+      error: err.message,
+      ...(process.env.NODE_ENV === 'development' && err.body ? { details: err.body } : {}),
+    });
+    return;
+  }
+
   const statusCode = err.statusCode || 500;
   const message = err.isOperational ? err.message : 'Internal Server Error';
 
