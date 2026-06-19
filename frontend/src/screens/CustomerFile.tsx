@@ -4,14 +4,14 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, fonts, shadows, radius, space, type as typeScale, touch } from '../theme';
 import { Customer } from '../types';
 import ScoreMeter from '../components/ScoreMeter';
-import CoverageSourceTag from '../components/CoverageSourceTag';
 import BackButton from '../components/ui/BackButton';
 import PressableScale from '../components/ui/PressableScale';
 import SectionHeader from '../components/ui/SectionHeader';
 import { Skeleton } from '../components/ui/Skeleton';
-import { FadeSlideIn, FloatView, PulseScale } from '../components/ui/motion';
+import { FadeSlideIn, PulseScale } from '../components/ui/motion';
 import ScoreBreakdownAccordion from '../components/customer/ScoreBreakdownAccordion';
 import CoachConversationGuide from '../components/partner/CoachConversationGuide';
+import CoverageAccordion from '../components/partner/CoverageAccordion';
 import { CADENCE_AI } from '../mockData';
 
 interface LessonItem {
@@ -161,8 +161,30 @@ export default function CustomerFile({
       </View>
       </FadeSlideIn>
 
+      <FadeSlideIn index={2}>
+      <View style={[styles.opportunityCard, shadows.card]}>
+        <SectionHeader title="Why this is your opportunity" accent={colors.accent} />
+        <Text style={styles.oppBody}>{customer.whyOpportunity}</Text>
+      </View>
+      </FadeSlideIn>
+
+      <FadeSlideIn index={3}>
+      <SectionHeader title={`${firstName}'s coverage`} accent={colors.mint} />
+      <CoverageAccordion rows={coverage} initialVisible={2} />
+      </FadeSlideIn>
+
+      <FadeSlideIn index={4}>
+        <View style={styles.coachGuideWrap}>
+          <CoachConversationGuide
+            customerFirstName={firstName}
+            talkingPoints={talks}
+            lessons={lessons}
+          />
+        </View>
+      </FadeSlideIn>
+
       {hasEnriched ? (
-        <FadeSlideIn index={2}>
+        <FadeSlideIn index={5}>
         <View style={[styles.enrichedDone, shadows.card]}>
           <PulseScale min={1} max={1.08} duration={1200}>
             <Text style={styles.enrichedEmoji}>✅</Text>
@@ -174,19 +196,17 @@ export default function CustomerFile({
         </View>
         </FadeSlideIn>
       ) : (
-        <FadeSlideIn index={2}>
+        <FadeSlideIn index={5}>
         <PressableScale
           onPress={onOpenQuestionnaire}
           style={[styles.enrichCard, shadows.card]}
         >
           <View style={styles.enrichLeft}>
-            <FloatView distance={2} duration={2200}>
-              <Text style={styles.enrichEmoji}>📋</Text>
-            </FloatView>
+            <Text style={styles.enrichEmoji}>📋</Text>
             <View style={{ flex: 1 }}>
               <Text style={styles.enrichTitle}>Add cover {firstName} holds elsewhere</Text>
               <Text style={styles.enrichSub}>
-                Ask {firstName} and log any policy bought outside PB to complete her score.
+                Ask {firstName} and log any policy bought outside PB to complete {firstName}'s score.
               </Text>
             </View>
           </View>
@@ -198,49 +218,6 @@ export default function CustomerFile({
         </PressableScale>
         </FadeSlideIn>
       )}
-
-      <FadeSlideIn index={3}>
-      <View style={[styles.opportunityCard, shadows.card]}>
-        <SectionHeader title="Why this is your opportunity" accent={colors.accent} />
-        <Text style={styles.oppBody}>{customer.whyOpportunity}</Text>
-      </View>
-      </FadeSlideIn>
-
-      <FadeSlideIn index={4}>
-      <SectionHeader title={`${firstName}'s coverage`} accent={colors.mint} />
-      {coverage.map((row, i) => (
-        <View key={row.id} style={[styles.coverageRow, shadows.card]}>
-          <View style={styles.coverageLeft}>
-            <FloatView distance={2} duration={2400} delay={i * 60}>
-              <View style={styles.coverageIconWrap}>
-                <Text style={styles.coverageIcon}>{row.icon}</Text>
-              </View>
-            </FloatView>
-            <View>
-              <View style={styles.coverageNameRow}>
-                <Text style={styles.coverageName}>{row.name}</Text>
-                {row.covered && row.source ? <CoverageSourceTag source={row.source} /> : null}
-              </View>
-            </View>
-          </View>
-          <View style={[styles.statusPill, row.covered && styles.statusCovered]}>
-            <Text style={[styles.coverageStatus, row.covered && styles.coveredText]}>
-              {row.covered ? '✓ Covered' : 'Not covered'}
-            </Text>
-          </View>
-        </View>
-      ))}
-      </FadeSlideIn>
-
-      <FadeSlideIn index={5}>
-        <View style={styles.coachGuideWrap}>
-          <CoachConversationGuide
-            customerFirstName={firstName}
-            talkingPoints={talks}
-            lessons={lessons}
-          />
-        </View>
-      </FadeSlideIn>
     </ScrollView>
   );
 }
@@ -396,40 +373,8 @@ const styles = StyleSheet.create({
     borderColor: colors.border.subtle,
   },
   oppBody: { ...typeScale.bodySm, color: colors.text.secondary, lineHeight: 22 },
-  coverageRow: {
-    marginHorizontal: space[4],
-    backgroundColor: colors.surface.card,
-    borderRadius: radius.md,
-    padding: space[4],
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: space[2],
-    borderWidth: 1,
-    borderColor: colors.border.default,
-  },
-  coverageLeft: { flexDirection: 'row', alignItems: 'center', gap: space[3], flex: 1 },
-  coverageIconWrap: {
-    width: 44,
-    height: 44,
-    borderRadius: radius.md,
-    backgroundColor: colors.surface.canvas,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  coverageIcon: { fontSize: 22 },
-  coverageNameRow: { flexDirection: 'row', alignItems: 'center', gap: space[2], flexWrap: 'wrap' },
-  coverageName: { fontFamily: fonts.bodySemi, fontSize: typeScale.bodySm.fontSize, color: colors.text.primary },
-  statusPill: {
-    paddingHorizontal: space[3],
-    paddingVertical: space[1],
-    borderRadius: radius.sm,
-    backgroundColor: colors.surface.canvas,
-  },
-  statusCovered: { backgroundColor: colors.status.successSoft },
-  coverageStatus: { fontFamily: fonts.bodyBold, fontSize: typeScale.caption.fontSize, color: colors.text.secondary },
-  coveredText: { color: colors.status.success },
   coachGuideWrap: {
     marginHorizontal: space[4],
+    marginBottom: space[4],
   },
 });

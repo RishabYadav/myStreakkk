@@ -51,7 +51,6 @@ function CustomerListSkeleton() {
       {[0, 1, 2].map((i) => (
         <View key={i} style={styles.card}>
           <View style={styles.cardInner}>
-            <Skeleton width={44} height={44} style={{ borderRadius: 22 }} />
             <View style={{ flex: 1, gap: 8 }}>
               <Skeleton width="55%" height={17} />
               <Skeleton width="85%" height={14} />
@@ -140,10 +139,6 @@ export default function MyCustomers({ customers, topOpportunityId, loading, onOp
                 scaleTo={0.985}
               >
                 <View style={styles.cardInner}>
-                  <LinearGradient colors={c.avatarColors} style={styles.avatar}>
-                    <Text style={styles.avatarText}>{c.initials}</Text>
-                  </LinearGradient>
-
                   <View style={styles.info}>
                     <Text style={styles.name} numberOfLines={1}>
                       {c.name}
@@ -152,11 +147,11 @@ export default function MyCustomers({ customers, topOpportunityId, loading, onOp
                       {c.gapSummary}
                     </Text>
                     <Text style={styles.metrics}>
-                      Opportunity{' '}
-                      <Text style={styles.metricsValue}>{c.opportunity_score}</Text>
-                      {'  ·  '}
-                      Protection{' '}
-                      <Text style={styles.metricsValue}>{c.protection_intelligence_score}</Text>
+                      <Text style={styles.metricLabel}>Opportunity </Text>
+                      <Text style={styles.metricValue}>{c.opportunity_score}</Text>
+                      <Text style={styles.metricSep}> · </Text>
+                      <Text style={styles.metricLabel}>Protection </Text>
+                      <Text style={styles.metricValue}>{c.protection_intelligence_score}</Text>
                     </Text>
                   </View>
 
@@ -267,7 +262,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill,
   },
   aiPickBadgeText: {
-    fontFamily: fonts.bodySemi,
+    fontFamily: fonts.bodyBold,
     fontSize: 10,
     color: '#C2410C',
     letterSpacing: 0.8,
@@ -285,16 +280,16 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   aiPickName: {
-    fontFamily: fonts.bodySemi,
+    fontFamily: fonts.heading,
     fontSize: 20,
-    lineHeight: 24,
+    lineHeight: 25,
     color: '#1C1C1E',
-    letterSpacing: -0.3,
+    letterSpacing: -0.35,
   },
   aiPickSub: {
     fontFamily: fonts.body,
-    fontSize: 14,
-    lineHeight: 19,
+    fontSize: 15,
+    lineHeight: 20,
     color: '#636366',
   },
   aiPickScoreRing: {
@@ -309,7 +304,7 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   },
   aiPickScoreNum: {
-    fontFamily: fonts.bodySemi,
+    fontFamily: fonts.heading,
     fontSize: 20,
     color: '#EA580C',
     fontVariant: ['tabular-nums'],
@@ -325,7 +320,7 @@ const styles = StyleSheet.create({
   },
   aiPickBullet: {
     flex: 1,
-    fontFamily: fonts.body,
+    fontFamily: fonts.bodySemi,
     fontSize: 15,
     lineHeight: 20,
     color: '#1C1C1E',
@@ -336,52 +331,43 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     paddingHorizontal: 16,
     gap: 12,
-    minHeight: 76,
-  },
-  avatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexShrink: 0,
-  },
-  avatarText: {
-    fontFamily: fonts.bodySemi,
-    fontSize: 15,
-    color: colors.text.inverse,
-    letterSpacing: 0.2,
+    minHeight: 72,
   },
   info: {
     flex: 1,
     minWidth: 0,
     gap: 3,
-    paddingRight: 4,
   },
   name: {
-    fontFamily: fonts.bodySemi,
+    fontFamily: fonts.heading,
     fontSize: 17,
     lineHeight: 22,
-    color: colors.text.primary,
-    letterSpacing: -0.2,
+    color: '#1C1C1E',
+    letterSpacing: -0.25,
   },
   gap: {
     fontFamily: fonts.body,
-    fontSize: 14,
-    lineHeight: 19,
+    fontSize: 15,
+    lineHeight: 20,
     color: '#636366',
   },
   metrics: {
-    fontFamily: fonts.body,
-    fontSize: 12,
-    lineHeight: 16,
-    color: '#8E8E93',
-    marginTop: 4,
+    fontSize: 13,
+    lineHeight: 18,
+    marginTop: 5,
   },
-  metricsValue: {
-    fontFamily: fonts.bodySemi,
+  metricLabel: {
+    fontFamily: fonts.bodyBold,
+    color: '#1C1C1E',
+  },
+  metricValue: {
+    fontFamily: fonts.heading,
     fontVariant: ['tabular-nums'],
-    color: '#636366',
+    color: '#1C1C1E',
+  },
+  metricSep: {
+    fontFamily: fonts.body,
+    color: '#C7C7CC',
   },
   trailing: {
     alignItems: 'center',

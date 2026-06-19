@@ -42,11 +42,11 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
   },
   score: {
-    fontFamily: fonts.bodySemi,
+    fontFamily: fonts.heading,
     fontVariant: ['tabular-nums'],
   },
   label: {
-    fontFamily: fonts.body,
+    fontFamily: fonts.bodySemi,
     fontSize: 11,
     color: '#8E8E93',
     letterSpacing: 0.1,
