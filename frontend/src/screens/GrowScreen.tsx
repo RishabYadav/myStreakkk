@@ -35,7 +35,14 @@ import {
   HealthReportPoster,
 } from '../components/grow/GrowVisuals';
 import HtmlGrowCard, { GROW_CARD_RENDER_W } from '../components/grow/HtmlGrowCard';
+import GrowPosterImage from '../components/grow/GrowPosterImage';
 import { fetchGrowCardTemplates } from '../services/growCards';
+import {
+  buildTemplatePayload,
+  fetchRecommendedTemplate,
+  getSectionApiKey,
+  type TemplateResult,
+} from '../services/llmTemplateApi';
 import { personalizeGrowTemplate, renderGrowCardHtml } from '../utils/growCardHtml';
 import { captureGrowCardImage, shareGrowCard } from '../utils/shareGrowCard';
 
@@ -63,11 +70,11 @@ interface ModalPayload {
   cardId?: string;
 }
 
-const SECTIONS: { key: SectionTab; label: string; day: number | null; icon: keyof typeof Feather.glyphMap }[] = [
-  { key: 'renewal', label: 'Renewal', day: 7, icon: 'clock' },
-  { key: 'pitch', label: 'Pitch', day: 21, icon: 'mic' },
-  { key: 'health', label: 'Health', day: 30, icon: 'activity' },
-  { key: 'greetings', label: 'Cards', day: null, icon: 'gift' },
+const SECTIONS: { key: SectionTab; label: string; day: number | null; icon: keyof typeof Feather.glyphMap; id: number }[] = [
+  { key: 'renewal', label: 'Renewal', day: 7, icon: 'clock', id: 1 },
+  { key: 'pitch', label: 'Pitch', day: 21, icon: 'mic', id: 4 },
+  { key: 'health', label: 'Health', day: 30, icon: 'activity', id: 3 },
+  { key: 'greetings', label: 'Cards', day: null, icon: 'gift', id: 2 },
 ];
 
 function personalize(template: string, customer: Customer) {
@@ -271,6 +278,9 @@ export default function GrowScreen({ customers, streakDay }: Props) {
   const [sharingCard, setSharingCard] = useState(false);
   const [shareDraftText, setShareDraftText] = useState('');
   const [captureHtml, setCaptureHtml] = useState<string | null>(null);
+  const [templateCache, setTemplateCache] = useState<Record<string, TemplateResult>>({});
+  const [templateLoadingKey, setTemplateLoadingKey] = useState<string | null>(null);
+  const [templateErrors, setTemplateErrors] = useState<Record<string, string>>({});
   const greetingScrollRef = useRef<ScrollView>(null);
   const cardCaptureRef = useRef<ViewShot>(null);
   const captureReadyRef = useRef(false);
@@ -285,6 +295,60 @@ export default function GrowScreen({ customers, streakDay }: Props) {
     () => customers.find((c) => c.customer_id === activeId) ?? customers[0],
     [customers, activeId]
   );
+
+  const activeSection = useMemo(
+    () => SECTIONS.find((sec) => sec.key === activeTab),
+    [activeTab]
+  );
+
+  const templateCacheKey = useMemo(() => {
+    if (!activeSection || getSectionApiKey(activeSection.id) === null) return null;
+    return `${customer.customer_id}-${activeSection.id}`;
+  }, [customer.customer_id, activeSection]);
+
+  const activeTemplate = templateCacheKey ? templateCache[templateCacheKey] ?? null : null;
+  const templateLoading = templateCacheKey !== null && templateLoadingKey === templateCacheKey;
+  const templateError = templateCacheKey ? templateErrors[templateCacheKey] ?? null : null;
+
+  const templateFetchedRef = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (!activeSection || !templateCacheKey) return;
+
+    const apiKey = getSectionApiKey(activeSection.id);
+    if (apiKey === null) return;
+    if (templateFetchedRef.current.has(templateCacheKey)) return;
+
+    const payload = buildTemplatePayload(activeSection.id, customer);
+    if (!payload) return;
+
+    let cancelled = false;
+    setTemplateLoadingKey(templateCacheKey);
+    setTemplateErrors((prev) => {
+      const next = { ...prev };
+      delete next[templateCacheKey];
+      return next;
+    });
+
+    fetchRecommendedTemplate(payload)
+      .then((result) => {
+        if (cancelled) return;
+        templateFetchedRef.current.add(templateCacheKey);
+        setTemplateCache((prev) => ({ ...prev, [templateCacheKey]: result }));
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        const message = err instanceof Error ? err.message : 'Could not load preview.';
+        setTemplateErrors((prev) => ({ ...prev, [templateCacheKey]: message }));
+      })
+      .finally(() => {
+        if (!cancelled) setTemplateLoadingKey(null);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeSection, customer, templateCacheKey]);
 
   const { width: windowWidth } = useWindowDimensions();
   const greetingSideInset = Math.max(0, (windowWidth - GREETING_CARD_W) / 2);
@@ -332,6 +396,7 @@ export default function GrowScreen({ customers, streakDay }: Props) {
   const selectCustomer = (id: string) => {
     setActiveId(id);
     setCompletedPoints({});
+    templateFetchedRef.current.clear();
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   };
 
@@ -480,6 +545,21 @@ export default function GrowScreen({ customers, streakDay }: Props) {
 
     return (
       <FadeSlideIn index={0} key={`greetings-${customer.customer_id}`}>
+        {activeTemplate?.posterImage?.dataBase64 ? (
+          <View style={styles.greetingApiPreview}>
+            <Text style={styles.groupTitle}>AI Card Preview</Text>
+            <GrowPosterImage
+              dataBase64={activeTemplate.posterImage.dataBase64}
+              mimeType={activeTemplate.posterImage.mimeType}
+              width={GREETING_CARD_W}
+            />
+          </View>
+        ) : templateLoading ? (
+          <View style={styles.cardsLoading}>
+            <ActivityIndicator color={colors.partner.accent} />
+            <Text style={styles.cardsLoadingText}>Generating card…</Text>
+          </View>
+        ) : null}
         <View style={styles.greetingCarousel}>
         {isSingleCard ? (
           <View style={styles.greetingSingle}>
@@ -596,6 +676,19 @@ export default function GrowScreen({ customers, streakDay }: Props) {
 
   const renderPitch = () => (
     <FadeSlideIn index={0} key={`pitch-${customer.customer_id}`}>
+      <GrowPosterImage
+        loading={templateLoading}
+        error={templateError}
+        dataBase64={activeTemplate?.posterImage?.dataBase64}
+        mimeType={activeTemplate?.posterImage?.mimeType}
+        fallback={
+          <HealthReportPoster
+            customerName={customer.name}
+            motorDaysLeft={customer.renewsInDays}
+            protectionScore={customer.protection_intelligence_score}
+          />
+        }
+      />
       <View style={styles.pitchHeader}>
         <View style={styles.pitchBadge}>
           <Feather name="lock" size={11} color="#8E8E93" />
@@ -665,25 +758,31 @@ export default function GrowScreen({ customers, streakDay }: Props) {
     </FadeSlideIn>
   );
 
-  const renderHealth = () => (
+  const renderHealth = () => {
+    const previewCaption =
+      activeTemplate?.content.caption ??
+      `Hi ${customer.name.split(' ')[0]}, your Protection Wellness report is ready — rating ${customer.protection_intelligence_score}%. Let's review two gap solutions today. 📊`;
+
+    return (
     <FadeSlideIn index={0} key={`health-${customer.customer_id}`}>
-      <HealthReportPoster
-        customerName={customer.name}
-        motorDaysLeft={customer.renewsInDays}
-        protectionScore={customer.protection_intelligence_score}
+      <GrowPosterImage
+        loading={templateLoading}
+        error={templateError}
+        dataBase64={activeTemplate?.posterImage?.dataBase64}
+        mimeType={activeTemplate?.posterImage?.mimeType}
+        fallback={
+          <HealthReportPoster
+            customerName={customer.name}
+            motorDaysLeft={customer.renewsInDays}
+            protectionScore={customer.protection_intelligence_score}
+          />
+        }
       />
       <Group title="Message Preview">
         <View style={styles.previewBlock}>
-          <Text style={styles.previewText}>
-            Hi {customer.name.split(' ')[0]}, your Protection Wellness report is ready — rating{' '}
-            {customer.protection_intelligence_score}%. Let's review two gap solutions today. 📊
-          </Text>
+          <Text style={styles.previewText}>{previewCaption}</Text>
           <PressableScale
-            onPress={() =>
-              copyPreview(
-                `Hi ${customer.name}, your Protection Wellness report is ready! Rating: ${customer.protection_intelligence_score}%. Let's review gap solutions today. 📊`
-              )
-            }
+            onPress={() => copyPreview(previewCaption)}
             style={styles.copyChip}
             haptic
           >
@@ -696,7 +795,8 @@ export default function GrowScreen({ customers, streakDay }: Props) {
         onShare={() =>
           openShare(
             'Policy Health Report',
-            "Hi {NAME}, your Protection Wellness report is ready! Rating: {SCORE}%. Let's review gap solutions today. 📊",
+            activeTemplate?.content.caption ??
+              "Hi {NAME}, your Protection Wellness report is ready! Rating: {SCORE}%. Let's review gap solutions today. 📊",
             'report'
           )
         }
@@ -709,7 +809,8 @@ export default function GrowScreen({ customers, streakDay }: Props) {
         onChange={(k, t) => setQuickNotes((p) => ({ ...p, [k]: t }))}
       />
     </FadeSlideIn>
-  );
+    );
+  };
 
   const renderContent = () => {
     switch (activeTab) {
@@ -1222,6 +1323,10 @@ const styles = StyleSheet.create({
 
   greetingCarousel: {
     width: '100%',
+  },
+  greetingApiPreview: {
+    marginBottom: space[3],
+    alignItems: 'center',
   },
   greetingScroll: {
     paddingVertical: space[1],

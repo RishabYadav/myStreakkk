@@ -31,6 +31,9 @@ export interface Customer {
   coverage: CoverageRow[];
   weak_spots: string[];
   top_gap: string;
+  /** Used for greeting card API (key=1). */
+  date_of_birth?: string;
+  partner_group?: string;
 }
 
 export interface AgentState {

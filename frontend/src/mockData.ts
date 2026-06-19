@@ -135,6 +135,8 @@ function buildAnjaliCustomer(): Customer {
     ],
     weak_spots: ['health', 'term'],
     top_gap: 'health',
+    date_of_birth: '1985-03-12',
+    partner_group: 'Health',
   };
 }
 
