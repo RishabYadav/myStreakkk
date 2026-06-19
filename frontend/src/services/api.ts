@@ -66,7 +66,7 @@ function mockCustomerAiReply(req: CustomerAiChatRequest): CustomerAiChatResponse
   }
   if (msg.includes('hello') || msg.includes('hi') || msg.includes('hey')) {
     return {
-      reply: `Hello ${name}! I'm your Protection Coach from PBPartners. I can explain your protection score, spot savings risks, and guide next steps in plain language.`,
+      reply: `Hello ${name}! I'm your Protection Coach. I can explain your protection score, spot savings risks, and guide next steps in plain language.`,
       suggestions: ['What are my gaps?', 'Improve my score', 'Explain my coverage'],
     };
   }

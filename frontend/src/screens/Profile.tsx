@@ -21,6 +21,7 @@ interface Props {
   agent: AgentState;
   isOffline: boolean;
   onToggleOffline: () => void;
+  onSwitchExperience?: () => void;
 }
 
 function InfoRow({
@@ -51,7 +52,7 @@ function InfoRow({
   );
 }
 
-export default function Profile({ agent, isOffline, onToggleOffline }: Props) {
+export default function Profile({ agent, isOffline, onToggleOffline, onSwitchExperience }: Props) {
   const initials = getInitials(agent.name);
 
   return (
@@ -152,7 +153,26 @@ export default function Profile({ agent, isOffline, onToggleOffline }: Props) {
           </View>
         </FadeSlideIn>
 
-        <FadeSlideIn index={3}>
+        {onSwitchExperience ? (
+          <FadeSlideIn index={3}>
+            <Pressable
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                onSwitchExperience();
+              }}
+              style={styles.switchBtn}
+            >
+              <Feather name="repeat" size={18} color={colors.partner.accent} />
+              <View style={styles.switchTextWrap}>
+                <Text style={styles.switchTitle}>Switch experience</Text>
+                <Text style={styles.switchSub}>Return to partner or customer selection</Text>
+              </View>
+              <Feather name="chevron-right" size={18} color="#94A3B8" />
+            </Pressable>
+          </FadeSlideIn>
+        ) : null}
+
+        <FadeSlideIn index={onSwitchExperience ? 4 : 3}>
           <Text style={styles.footer}>
             Regulated under IRDAI digital agency guidelines. Activity metrics undergo tamper-proof auditing.
           </Text>
@@ -167,7 +187,7 @@ const styles = StyleSheet.create({
   content: { paddingBottom: space[11] },
   hero: {
     paddingHorizontal: space[5],
-    paddingTop: space[7],
+    paddingTop: space[4],
     paddingBottom: space[6],
     borderBottomLeftRadius: radius.xl,
     borderBottomRightRadius: radius.xl,
@@ -265,6 +285,20 @@ const styles = StyleSheet.create({
   simBtnActive: { backgroundColor: colors.status.warning },
   simBtnText: { ...typeScale.label, color: colors.text.primary, fontSize: 10 },
   simBtnTextActive: { color: colors.text.inverse },
+  switchBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space[3],
+    backgroundColor: colors.surface.card,
+    borderRadius: radius.lg,
+    padding: space[4],
+    borderWidth: 1,
+    borderColor: colors.border.default,
+    marginBottom: space[4],
+  },
+  switchTextWrap: { flex: 1 },
+  switchTitle: { fontFamily: fonts.bodySemi, fontSize: 15, color: colors.text.primary },
+  switchSub: { fontFamily: fonts.body, fontSize: 12, color: colors.text.tertiary, marginTop: 2 },
   footer: {
     ...typeScale.caption,
     color: colors.text.tertiary,

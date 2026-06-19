@@ -21,7 +21,6 @@ import { colors, fonts, shadows, radius, space, type as typeScale, touch } from 
 import { AgentState, MissionItem } from '../types';
 import { AI_SLIDES, ACTIVE_MISSIONS, FALLBACK_MISSIONS } from '../mockData';
 import { formatCountdown } from '../utils';
-import PartnerCustomerToggle from '../components/PartnerCustomerToggle';
 import RewardsDesk from '../components/streak/RewardsDesk';
 import Toast from '../components/ui/Toast';
 import PressableScale from '../components/ui/PressableScale';
@@ -42,8 +41,6 @@ import {
 interface Props {
   agent: AgentState;
   hasBooked: boolean;
-  viewMode: 'streak' | 'customer_pov';
-  onChangeView: (mode: 'streak' | 'customer_pov') => void;
   onOpenBooking: () => void;
   onUpdateCoins: (amount: number) => void;
   onDemoReset: () => void;
@@ -203,8 +200,6 @@ function SwipeableMission({
 export default function StreakHome({
   agent,
   hasBooked,
-  viewMode,
-  onChangeView,
   onOpenBooking,
   onUpdateCoins,
   onDemoReset,
@@ -337,7 +332,6 @@ export default function StreakHome({
               />
               <Text style={styles.infoIcon}>ⓘ</Text>
             </Pressable>
-            <PartnerCustomerToggle activeMode={viewMode} onChange={onChangeView} />
           </View>
 
           <Pressable onLongPress={handleStreakLongPress} delayLongPress={800}>

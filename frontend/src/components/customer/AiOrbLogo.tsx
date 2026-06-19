@@ -62,7 +62,7 @@ export default function AiOrbLogo({ size = 56 }: Props) {
         ]}
       >
         <LinearGradient
-          colors={['#34D399', '#14B8A6', '#6366F1', '#34D399']}
+          colors={['#93C5FD', '#60A5FA', '#3B82F6', '#93C5FD']}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={[StyleSheet.absoluteFill, { borderRadius: ringSize / 2, opacity: 0.85 }]}
@@ -71,7 +71,7 @@ export default function AiOrbLogo({ size = 56 }: Props) {
       <View style={[styles.coreWrap, { width: outerSize, height: outerSize }]}>
         <PulseScale min={0.94} max={1.06} duration={1400}>
           <LinearGradient
-            colors={['#059669', '#0D9488', '#4F46E5']}
+            colors={['#60A5FA', '#3B82F6', '#2563EB']}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
             style={[styles.core, { width: size, height: size, borderRadius: size / 2 }]}
@@ -96,7 +96,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 0,
     left: 0,
-    backgroundColor: 'rgba(52,211,153,0.35)',
+    backgroundColor: 'rgba(59,130,246,0.25)',
   },
   ring: {
     position: 'absolute',
@@ -114,7 +114,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderWidth: 2,
     borderColor: 'rgba(255,255,255,0.45)',
-    shadowColor: '#059669',
+    shadowColor: '#3B82F6',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.45,
     shadowRadius: 10,

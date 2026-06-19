@@ -1,0 +1,1156 @@
+import React, { useCallback, useMemo, useRef, useState } from 'react';
+import {
+  View,
+  Text,
+  ScrollView,
+  Pressable,
+  StyleSheet,
+  TextInput,
+  Modal,
+  Share,
+  LayoutAnimation,
+  Platform,
+  UIManager,
+  NativeScrollEvent,
+  NativeSyntheticEvent,
+} from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Feather } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
+import { colors, fonts, radius, shadows, space, type as typeScale } from '../theme';
+import { Customer } from '../types';
+import Toast from '../components/ui/Toast';
+import PressableScale from '../components/ui/PressableScale';
+import {
+  BreatheView,
+  CarouselDot,
+  FadeSlideIn,
+  LiveDot,
+} from '../components/ui/motion';
+import {
+  MotorRenewalPoster,
+  HealthReportPoster,
+  CongratsGreetingCard,
+  HeartTreeGreetingCard,
+  ThankYouGreetingCard,
+} from '../components/grow/GrowVisuals';
+
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
+
+const GREETING_CARD_W = 200;
+const GREETING_SNAP = GREETING_CARD_W + 12;
+
+interface Props {
+  customers: Customer[];
+  streakDay: number;
+}
+
+type SectionTab = 'renewal' | 'pitch' | 'health' | 'greetings';
+type ModalKind = 'whatsapp' | 'download' | null;
+
+interface ModalPayload {
+  title: string;
+  text: string;
+  imageType: string;
+}
+
+const SECTIONS: { key: SectionTab; label: string; day: number | null; icon: keyof typeof Feather.glyphMap }[] = [
+  { key: 'renewal', label: 'Renewal', day: 7, icon: 'clock' },
+  { key: 'pitch', label: 'Pitch', day: 21, icon: 'mic' },
+  { key: 'health', label: 'Health', day: 30, icon: 'activity' },
+  { key: 'greetings', label: 'Cards', day: null, icon: 'gift' },
+];
+
+function personalize(template: string, customer: Customer) {
+  return template
+    .replace(/{NAME}/g, customer.name)
+    .replace(/{DAYS}/g, String(customer.renewsInDays))
+    .replace(/{SCORE}/g, String(customer.protection_intelligence_score));
+}
+
+function Group({ title, children }: { title?: string; children: React.ReactNode }) {
+  return (
+    <View style={styles.group}>
+      {title ? <Text style={styles.groupTitle}>{title}</Text> : null}
+      <View style={styles.groupBox}>{children}</View>
+    </View>
+  );
+}
+
+function GroupRow({
+  label,
+  value,
+  onPress,
+  last,
+  chevron,
+}: {
+  label: string;
+  value?: string;
+  onPress?: () => void;
+  last?: boolean;
+  chevron?: boolean;
+}) {
+  const inner = (
+    <>
+      <Text style={styles.rowLabel}>{label}</Text>
+      <View style={styles.rowRight}>
+        {value ? <Text style={styles.rowValue}>{value}</Text> : null}
+        {chevron ? <Feather name="chevron-right" size={16} color="#C7C7CC" /> : null}
+      </View>
+    </>
+  );
+  if (onPress) {
+    return (
+      <PressableScale onPress={onPress} style={[styles.groupRow, !last && styles.groupRowBorder]}>
+        {inner}
+      </PressableScale>
+    );
+  }
+  return <View style={[styles.groupRow, !last && styles.groupRowBorder]}>{inner}</View>;
+}
+
+function Disclosure({
+  title,
+  subtitle,
+  defaultOpen = false,
+  children,
+}: {
+  title: string;
+  subtitle?: string;
+  defaultOpen?: boolean;
+  children: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  const toggle = () => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setOpen((v) => !v);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  };
+  return (
+    <View style={styles.disclosure}>
+      <Pressable onPress={toggle} style={styles.disclosureHead}>
+        <View style={styles.disclosureHeadLeft}>
+          <Text style={styles.disclosureTitle}>{title}</Text>
+          {subtitle && !open ? <Text style={styles.disclosureSub} numberOfLines={1}>{subtitle}</Text> : null}
+        </View>
+        <Feather name={open ? 'chevron-up' : 'chevron-down'} size={18} color="#8E8E93" />
+      </Pressable>
+      {open ? <View style={styles.disclosureBody}>{children}</View> : null}
+    </View>
+  );
+}
+
+function CompactNote({
+  customerName,
+  sectionKey,
+  value,
+  onChange,
+}: {
+  customerName: string;
+  sectionKey: string;
+  value: string;
+  onChange: (key: string, text: string) => void;
+}) {
+  const [open, setOpen] = useState(!!value);
+  const noteKey = `${customerName}_${sectionKey}`;
+  const toggle = () => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setOpen((v) => !v);
+  };
+  return (
+    <Group title="Call Notes">
+      <Pressable onPress={toggle} style={styles.noteToggle}>
+        <Feather name="edit-3" size={15} color={colors.partner.accent} />
+        <Text style={styles.noteToggleText}>
+          {value ? 'Edit verbal feedback' : 'Add verbal feedback'}
+        </Text>
+        {value ? (
+          <View style={styles.noteSavedDot}>
+            <Feather name="check" size={10} color="#FFF" />
+          </View>
+        ) : null}
+        <Feather name={open ? 'chevron-up' : 'chevron-down'} size={16} color="#C7C7CC" />
+      </Pressable>
+      {open ? (
+        <TextInput
+          value={value}
+          onChangeText={(t) => onChange(noteKey, t)}
+          placeholder={`Notes from your call with ${customerName.split(' ')[0]}…`}
+          placeholderTextColor="#AEAEB2"
+          multiline
+          style={styles.noteInput}
+        />
+      ) : null}
+    </Group>
+  );
+}
+
+function ActionBar({ onShare, onDownload }: { onShare: () => void; onDownload: () => void }) {
+  return (
+    <View style={styles.actionBar}>
+      <PressableScale onPress={onShare} style={styles.actionPrimary} haptic>
+        <Feather name="send" size={16} color="#FFF" />
+        <Text style={styles.actionPrimaryText}>Share</Text>
+      </PressableScale>
+      <PressableScale onPress={onDownload} style={styles.actionSecondary} haptic>
+        <Feather name="download" size={16} color={colors.partner.accent} />
+        <Text style={styles.actionSecondaryText}>Save</Text>
+      </PressableScale>
+    </View>
+  );
+}
+
+function SectionTabs({
+  active,
+  onChange,
+  streakDay,
+}: {
+  active: SectionTab;
+  onChange: (tab: SectionTab) => void;
+  streakDay: number;
+}) {
+  return (
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      contentContainerStyle={styles.tabRow}
+      style={styles.tabScroll}
+    >
+      {SECTIONS.map((sec) => {
+        const selected = active === sec.key;
+        const locked = sec.day !== null && streakDay < sec.day;
+        return (
+          <PressableScale
+            key={sec.key}
+            onPress={() => {
+              if (locked) {
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+                return;
+              }
+              onChange(sec.key);
+            }}
+            style={[styles.tab, selected && styles.tabActive, locked && styles.tabLocked]}
+            haptic={!locked}
+          >
+            <Feather
+              name={locked ? 'lock' : sec.icon}
+              size={13}
+              color={selected ? colors.partner.accent : locked ? '#C7C7CC' : '#8E8E93'}
+            />
+            <Text style={[styles.tabLabel, selected && styles.tabLabelActive, locked && styles.tabLabelLocked]}>
+              {sec.label}
+            </Text>
+            {sec.day !== null ? (
+              <Text style={[styles.tabDay, selected && styles.tabDayActive]}>D{sec.day}</Text>
+            ) : null}
+          </PressableScale>
+        );
+      })}
+    </ScrollView>
+  );
+}
+
+export default function GrowScreen({ customers, streakDay }: Props) {
+  const [activeId, setActiveId] = useState(customers[0]?.customer_id ?? '');
+  const [activeTab, setActiveTab] = useState<SectionTab>('renewal');
+  const [completedPoints, setCompletedPoints] = useState<Record<number, boolean>>({});
+  const [quickNotes, setQuickNotes] = useState<Record<string, string>>({});
+  const [modalKind, setModalKind] = useState<ModalKind>(null);
+  const [modalPayload, setModalPayload] = useState<ModalPayload | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
+  const [greetingIndex, setGreetingIndex] = useState(0);
+  const greetingScrollRef = useRef<ScrollView>(null);
+
+  const dismissToast = useCallback(() => setToast(null), []);
+  const showToast = useCallback((msg: string) => {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    setToast(msg);
+  }, []);
+
+  const customer = useMemo(
+    () => customers.find((c) => c.customer_id === activeId) ?? customers[0],
+    [customers, activeId]
+  );
+
+  const pointsDone = Object.values(completedPoints).filter(Boolean).length;
+
+  const selectCustomer = (id: string) => {
+    setActiveId(id);
+    setCompletedPoints({});
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  };
+
+  const switchTab = (tab: SectionTab) => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setActiveTab(tab);
+  };
+
+  const openShare = (title: string, template: string, imageType: string) => {
+    setModalPayload({ title, text: personalize(template, customer), imageType });
+    setModalKind('whatsapp');
+  };
+
+  const openDownload = (title: string, imageType: string) => {
+    setModalPayload({
+      title,
+      text: `High-resolution "${title}" for ${customer.name}.`,
+      imageType,
+    });
+    setModalKind('download');
+    setTimeout(() => showToast('Saved to downloads'), 900);
+  };
+
+  const dispatchShare = async () => {
+    if (!modalPayload) return;
+    try {
+      await Share.share({ message: modalPayload.text });
+      showToast(`Shared with ${customer.name.split(' ')[0]}`);
+    } catch {
+      showToast('Share cancelled');
+    }
+    setModalKind(null);
+  };
+
+  const copyPreview = async (text: string) => {
+    try {
+      await Share.share({ message: text });
+    } catch {
+      /* cancelled */
+    }
+  };
+
+  const onGreetingScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const idx = Math.round(e.nativeEvent.contentOffset.x / GREETING_SNAP);
+    setGreetingIndex(Math.min(2, Math.max(0, idx)));
+  };
+
+  const talkingPoints = [
+    `Motor renews in ${customer.renewsInDays} days — lock in the premium rate early.`,
+    `Protection gap: motor & life covered, health shield is weak.`,
+    `Consolidating health now unlocks 5% multi-policy discount.`,
+  ];
+
+  const greetingTemplates = [
+    {
+      card: <CongratsGreetingCard customerName={customer.name} />,
+      title: 'Congratulations',
+      template: 'Congratulations {NAME}! Wishing you endless joy, safety, and prosperity! Best, PBPartners. ✨',
+      type: 'congrats',
+    },
+    {
+      card: <HeartTreeGreetingCard customerName={customer.name} />,
+      title: 'Thinking of You',
+      template: 'Warm greetings {NAME}, thinking of you today! — From your safety advisor. 💖',
+      type: 'heart-tree',
+    },
+    {
+      card: <ThankYouGreetingCard customerName={customer.name} />,
+      title: 'Thank You',
+      template: 'Dear {NAME}, sincere gratitude for choosing us as your coverage partner! 🌟 — PBPartners.',
+      type: 'thank-you',
+    },
+  ];
+
+  const renderRenewal = () => (
+    <FadeSlideIn index={0} key={`renewal-${customer.customer_id}`}>
+      <MotorRenewalPoster
+        customerName={customer.name}
+        motorDaysLeft={customer.renewsInDays}
+        protectionScore={customer.protection_intelligence_score}
+      />
+      <Group title="Message Preview">
+        <View style={styles.previewBlock}>
+          <Text style={styles.previewText}>
+            Hi {customer.name.split(' ')[0]}, your motor policy is due in {customer.renewsInDays} days. Let's ensure
+            zero break-in risk. Safe driving! 🚗
+          </Text>
+          <PressableScale
+            onPress={() =>
+              copyPreview(
+                `Hi ${customer.name}, your motor policy is due in ${customer.renewsInDays} days! Let's ensure zero break-in risk. Safe driving! 🚗`
+              )
+            }
+            style={styles.copyChip}
+            haptic
+          >
+            <Feather name="copy" size={12} color={colors.partner.accent} />
+            <Text style={styles.copyChipText}>Copy</Text>
+          </PressableScale>
+        </View>
+      </Group>
+      <ActionBar
+        onShare={() =>
+          openShare(
+            'Renewal Reminder',
+            "Hi {NAME}, your motor policy is due in {DAYS} days! Let's ensure zero break-in risk. Safe driving! 🚗",
+            'motor'
+          )
+        }
+        onDownload={() => openDownload('Renewal Reminder', 'motor')}
+      />
+      <CompactNote
+        customerName={customer.name}
+        sectionKey="renewal"
+        value={quickNotes[`${customer.name}_renewal`] ?? ''}
+        onChange={(k, t) => setQuickNotes((p) => ({ ...p, [k]: t }))}
+      />
+    </FadeSlideIn>
+  );
+
+  const renderPitch = () => (
+    <FadeSlideIn index={0} key={`pitch-${customer.customer_id}`}>
+      <View style={styles.pitchHeader}>
+        <View style={styles.pitchBadge}>
+          <Feather name="lock" size={11} color="#8E8E93" />
+          <Text style={styles.pitchBadgeText}>Private script</Text>
+        </View>
+        <View style={styles.progressPill}>
+          <Text style={styles.progressText}>{pointsDone}/3 points</Text>
+          <View style={styles.progressTrack}>
+            <View style={[styles.progressFill, { width: `${(pointsDone / 3) * 100}%` }]} />
+          </View>
+        </View>
+      </View>
+
+      <Disclosure title="Opening" subtitle={`Hi ${customer.name.split(' ')[0]}…`} defaultOpen>
+        <Text style={styles.scriptText}>
+          "Hi {customer.name}, I was reviewing your policies ahead of your motor renewal in{' '}
+          <Text style={styles.scriptBold}>{customer.renewsInDays} days</Text>. Congratulations on your excellent risk
+          score! Can we make your safety net complete this year?"
+        </Text>
+      </Disclosure>
+
+      <View style={styles.pointsGroup}>
+        <Text style={styles.pointsLabel}>Talking Points</Text>
+        {talkingPoints.map((pt, idx) => {
+          const done = !!completedPoints[idx];
+          return (
+            <PressableScale
+              key={idx}
+              onPress={() => setCompletedPoints((p) => ({ ...p, [idx]: !p[idx] }))}
+              style={[styles.pointRow, done && styles.pointRowDone]}
+              haptic
+            >
+              <View style={[styles.pointCircle, done && styles.pointCircleDone]}>
+                {done ? <Feather name="check" size={11} color="#FFF" /> : null}
+              </View>
+              <Text style={[styles.pointText, done && styles.pointTextDone]}>{pt}</Text>
+            </PressableScale>
+          );
+        })}
+        {pointsDone === 3 ? (
+          <View style={styles.pointsDoneBanner}>
+            <Feather name="zap" size={14} color={colors.customerGreen} />
+            <Text style={styles.pointsDoneText}>Pitch path complete</Text>
+          </View>
+        ) : null}
+      </View>
+
+      <Disclosure title="If client pushes back">
+        <Text style={styles.scriptText}>
+          "I understand budget is a consideration, {customer.name.split(' ')[0]}. An unexpected medical event can
+          impact savings far more than a small monthly premium…"
+        </Text>
+      </Disclosure>
+
+      <Disclosure title="Closing">
+        <Text style={styles.scriptText}>
+          "Shall I send a quick comparison of the top two affordable health plans? Two minutes to review."
+        </Text>
+      </Disclosure>
+
+      <CompactNote
+        customerName={customer.name}
+        sectionKey="pitch"
+        value={quickNotes[`${customer.name}_pitch`] ?? ''}
+        onChange={(k, t) => setQuickNotes((p) => ({ ...p, [k]: t }))}
+      />
+    </FadeSlideIn>
+  );
+
+  const renderHealth = () => (
+    <FadeSlideIn index={0} key={`health-${customer.customer_id}`}>
+      <HealthReportPoster
+        customerName={customer.name}
+        motorDaysLeft={customer.renewsInDays}
+        protectionScore={customer.protection_intelligence_score}
+      />
+      <Group title="Message Preview">
+        <View style={styles.previewBlock}>
+          <Text style={styles.previewText}>
+            Hi {customer.name.split(' ')[0]}, your Protection Wellness report is ready — rating{' '}
+            {customer.protection_intelligence_score}%. Let's review two gap solutions today. 📊
+          </Text>
+          <PressableScale
+            onPress={() =>
+              copyPreview(
+                `Hi ${customer.name}, your Protection Wellness report is ready! Rating: ${customer.protection_intelligence_score}%. Let's review gap solutions today. 📊`
+              )
+            }
+            style={styles.copyChip}
+            haptic
+          >
+            <Feather name="copy" size={12} color={colors.partner.accent} />
+            <Text style={styles.copyChipText}>Copy</Text>
+          </PressableScale>
+        </View>
+      </Group>
+      <ActionBar
+        onShare={() =>
+          openShare(
+            'Policy Health Report',
+            "Hi {NAME}, your Protection Wellness report is ready! Rating: {SCORE}%. Let's review gap solutions today. 📊",
+            'report'
+          )
+        }
+        onDownload={() => openDownload('Policy Health Report', 'report')}
+      />
+      <CompactNote
+        customerName={customer.name}
+        sectionKey="report"
+        value={quickNotes[`${customer.name}_report`] ?? ''}
+        onChange={(k, t) => setQuickNotes((p) => ({ ...p, [k]: t }))}
+      />
+    </FadeSlideIn>
+  );
+
+  const renderGreetings = () => (
+    <FadeSlideIn index={0} key={`greetings-${customer.customer_id}`}>
+      <ScrollView
+        ref={greetingScrollRef}
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        decelerationRate="fast"
+        snapToInterval={GREETING_SNAP}
+        onScroll={onGreetingScroll}
+        scrollEventThrottle={16}
+        contentContainerStyle={styles.greetingScroll}
+      >
+        {greetingTemplates.map((g, i) => (
+          <PressableScale
+            key={g.type}
+            onPress={() => openShare(g.title, g.template, g.type)}
+            style={styles.greetingWrap}
+            haptic
+          >
+            {g.card}
+            <View style={styles.greetingOverlay}>
+              <Feather name="send" size={14} color="#FFF" />
+              <Text style={styles.greetingOverlayText}>Tap to share</Text>
+            </View>
+          </PressableScale>
+        ))}
+      </ScrollView>
+      <View style={styles.dotRow}>
+        {greetingTemplates.map((_, i) => (
+          <CarouselDot
+            key={i}
+            active={greetingIndex === i}
+            activeColor={colors.partner.accent}
+            inactiveColor="#D1D1D6"
+          />
+        ))}
+      </View>
+      <Group title="Templates">
+        {greetingTemplates.map((g, i) => (
+          <GroupRow
+            key={g.type}
+            label={g.title}
+            chevron
+            last={i === greetingTemplates.length - 1}
+            onPress={() => {
+              greetingScrollRef.current?.scrollTo({ x: i * GREETING_SNAP, animated: true });
+              openShare(g.title, g.template, g.type);
+            }}
+          />
+        ))}
+      </Group>
+      <CompactNote
+        customerName={customer.name}
+        sectionKey="greetings"
+        value={quickNotes[`${customer.name}_greetings`] ?? ''}
+        onChange={(k, t) => setQuickNotes((p) => ({ ...p, [k]: t }))}
+      />
+    </FadeSlideIn>
+  );
+
+  const renderContent = () => {
+    switch (activeTab) {
+      case 'renewal':
+        return renderRenewal();
+      case 'pitch':
+        return renderPitch();
+      case 'health':
+        return renderHealth();
+      case 'greetings':
+        return renderGreetings();
+    }
+  };
+
+  return (
+    <View style={styles.root}>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+        stickyHeaderIndices={[1]}
+      >
+        <View style={styles.hero}>
+          <View style={styles.heroTop}>
+            <View>
+              <Text style={styles.largeTitle}>Grow</Text>
+              <Text style={styles.heroSub}>Shareable content · Day {streakDay}</Text>
+            </View>
+            <BreatheView style={styles.livePill} min={0.85} max={1} duration={2000}>
+              <LiveDot color={colors.customerGreen} size={5} />
+              <Text style={styles.livePillText}>Live</Text>
+            </BreatheView>
+          </View>
+
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.avatarRow}
+          >
+            {customers.map((c) => {
+              const active = c.customer_id === customer.customer_id;
+              return (
+                <PressableScale
+                  key={c.customer_id}
+                  onPress={() => selectCustomer(c.customer_id)}
+                  style={styles.avatarBtn}
+                  haptic
+                >
+                  <LinearGradient
+                    colors={active ? [c.avatarColors[0], c.avatarColors[1]] : ['#E5E5EA', '#D1D1D6']}
+                    style={[styles.avatarCircle, active && styles.avatarCircleActive]}
+                  >
+                    <Text style={[styles.avatarInitials, !active && styles.avatarInitialsMuted]}>{c.initials}</Text>
+                  </LinearGradient>
+                  <Text style={[styles.avatarName, active && styles.avatarNameActive]} numberOfLines={1}>
+                    {c.name.split(' ')[0]}
+                  </Text>
+                </PressableScale>
+              );
+            })}
+          </ScrollView>
+
+          <View style={styles.statsStrip}>
+            <View style={styles.stat}>
+              <Text style={styles.statValue}>{customer.renewsInDays}d</Text>
+              <Text style={styles.statLabel}>Renewal</Text>
+            </View>
+            <View style={styles.statDivider} />
+            <View style={styles.stat}>
+              <Text style={[styles.statValue, { color: colors.partner.accent }]}>
+                {customer.protection_intelligence_score}
+              </Text>
+              <Text style={styles.statLabel}>Score</Text>
+            </View>
+            <View style={styles.statDivider} />
+            <View style={styles.statFlex}>
+              <Text style={styles.statName} numberOfLines={1}>
+                {customer.name}
+              </Text>
+              <Text style={styles.statLabel}>Selected</Text>
+            </View>
+          </View>
+        </View>
+
+        <View style={styles.stickyTabs}>
+          <SectionTabs active={activeTab} onChange={switchTab} streakDay={streakDay} />
+        </View>
+
+        <View style={styles.sectionBody}>{renderContent()}</View>
+
+        <Text style={styles.footer}>More unlocks as your streak grows.</Text>
+      </ScrollView>
+
+      <Toast message={toast} onHide={dismissToast} bottom={96} variant="green" />
+
+      <Modal visible={modalKind === 'whatsapp'} transparent animationType="slide" onRequestClose={() => setModalKind(null)}>
+        <Pressable style={styles.modalBackdrop} onPress={() => setModalKind(null)}>
+          <Pressable style={styles.modalSheet} onPress={(e) => e.stopPropagation()}>
+            <View style={styles.sheetHandle} />
+            <Text style={styles.sheetTitle}>Share via WhatsApp</Text>
+            <Text style={styles.sheetSub}>To {customer.name}</Text>
+            <View style={styles.bubble}>
+              <Text style={styles.bubbleText}>{modalPayload?.text}</Text>
+            </View>
+            <View style={styles.sheetMeta}>
+              <Feather name="paperclip" size={14} color={colors.customerGreen} />
+              <Text style={styles.sheetMetaText}>{modalPayload?.imageType?.toUpperCase()} poster attached</Text>
+            </View>
+            <PressableScale onPress={dispatchShare} style={styles.sheetPrimary} haptic>
+              <Feather name="send" size={16} color="#FFF" />
+              <Text style={styles.sheetPrimaryText}>Send Message</Text>
+            </PressableScale>
+            <Pressable onPress={() => setModalKind(null)} style={styles.sheetCancel}>
+              <Text style={styles.sheetCancelText}>Cancel</Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      <Modal visible={modalKind === 'download'} transparent animationType="fade" onRequestClose={() => setModalKind(null)}>
+        <View style={styles.modalBackdropCenter}>
+          <View style={styles.downloadSheet}>
+            <View style={styles.downloadIcon}>
+              <Feather name="check" size={22} color={colors.customerGreen} />
+            </View>
+            <Text style={styles.downloadTitle}>Saved</Text>
+            <Text style={styles.downloadSub}>{modalPayload?.text}</Text>
+            <PressableScale onPress={() => setModalKind(null)} style={styles.sheetPrimary} haptic>
+              <Text style={styles.sheetPrimaryText}>Done</Text>
+            </PressableScale>
+          </View>
+        </View>
+      </Modal>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  root: { flex: 1, backgroundColor: '#F2F2F7' },
+  scroll: { flex: 1 },
+  content: { paddingBottom: 110 },
+
+  hero: {
+    backgroundColor: '#FFF',
+    paddingHorizontal: space[4],
+    paddingTop: space[2],
+    paddingBottom: space[3],
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#E5E5EA',
+  },
+  heroTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: space[3],
+  },
+  largeTitle: {
+    ...typeScale.title,
+    fontSize: 28,
+    letterSpacing: -0.6,
+    color: colors.text.primary,
+  },
+  heroSub: {
+    ...typeScale.caption,
+    color: colors.text.tertiary,
+    marginTop: 2,
+  },
+  livePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: colors.customer.accentSoft,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: radius.pill,
+  },
+  livePillText: {
+    fontFamily: fonts.bodyBold,
+    fontSize: 11,
+    color: colors.customerGreen,
+    letterSpacing: 0.3,
+  },
+
+  avatarRow: { gap: space[3], paddingBottom: space[3] },
+  avatarBtn: { alignItems: 'center', width: 56 },
+  avatarCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: 'transparent',
+  },
+  avatarCircleActive: {
+    borderColor: '#FFF',
+    ...shadows.card,
+  },
+  avatarInitials: { fontFamily: fonts.headingExtra, fontSize: 14, color: '#FFF' },
+  avatarInitialsMuted: { color: '#8E8E93' },
+  avatarName: {
+    fontFamily: fonts.body,
+    fontSize: 11,
+    color: colors.text.tertiary,
+    marginTop: 4,
+    maxWidth: 56,
+    textAlign: 'center',
+  },
+  avatarNameActive: { fontFamily: fonts.bodyBold, color: colors.text.primary },
+
+  statsStrip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F2F2F7',
+    borderRadius: radius.md,
+    paddingVertical: space[2],
+    paddingHorizontal: space[3],
+  },
+  stat: { alignItems: 'center', minWidth: 52 },
+  statFlex: { flex: 1, paddingLeft: space[2] },
+  statValue: { fontFamily: fonts.headingExtra, fontSize: 17, color: colors.text.primary, letterSpacing: -0.3 },
+  statName: { fontFamily: fonts.bodySemi, fontSize: 14, color: colors.text.primary },
+  statLabel: { fontFamily: fonts.body, fontSize: 10, color: '#8E8E93', marginTop: 1 },
+  statDivider: { width: StyleSheet.hairlineWidth, height: 28, backgroundColor: '#D1D1D6', marginHorizontal: space[2] },
+
+  stickyTabs: {
+    backgroundColor: '#F2F2F7',
+    paddingTop: space[2],
+    paddingBottom: space[1],
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#E5E5EA',
+  },
+  tabScroll: { flexGrow: 0 },
+  tabRow: { paddingHorizontal: space[4], gap: space[2] },
+  tab: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: radius.pill,
+    backgroundColor: '#FFF',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: '#E5E5EA',
+  },
+  tabActive: {
+    backgroundColor: colors.partner.accentSoft,
+    borderColor: 'rgba(37,99,235,0.25)',
+  },
+  tabLocked: { opacity: 0.55 },
+  tabLabel: { fontFamily: fonts.bodySemi, fontSize: 13, color: '#8E8E93' },
+  tabLabelActive: { color: colors.partner.accent, fontFamily: fonts.bodyBold },
+  tabLabelLocked: { color: '#C7C7CC' },
+  tabDay: { fontFamily: fonts.body, fontSize: 9, color: '#AEAEB2', marginLeft: 2 },
+  tabDayActive: { color: colors.partner.accent },
+
+  sectionBody: { paddingHorizontal: space[4], paddingTop: space[3], gap: space[3] },
+
+  group: { marginTop: space[2] },
+  groupTitle: {
+    fontFamily: fonts.body,
+    fontSize: 13,
+    color: '#8E8E93',
+    marginBottom: space[1],
+    marginLeft: space[1],
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
+  groupBox: {
+    backgroundColor: '#FFF',
+    borderRadius: radius.md,
+    overflow: 'hidden',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: '#E5E5EA',
+  },
+  groupRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+    paddingHorizontal: space[4],
+    minHeight: 44,
+  },
+  groupRowBorder: {
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#E5E5EA',
+  },
+  rowLabel: { fontFamily: fonts.body, fontSize: 15, color: colors.text.primary },
+  rowRight: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  rowValue: { fontFamily: fonts.body, fontSize: 15, color: '#8E8E93' },
+
+  previewBlock: { padding: space[3] },
+  previewText: { fontFamily: fonts.body, fontSize: 14, color: colors.text.secondary, lineHeight: 20 },
+  copyChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    alignSelf: 'flex-start',
+    marginTop: space[2],
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: radius.pill,
+    backgroundColor: colors.partner.accentSoft,
+  },
+  copyChipText: { fontFamily: fonts.bodySemi, fontSize: 12, color: colors.partner.accent },
+
+  actionBar: { flexDirection: 'row', gap: space[2], marginTop: space[1] },
+  actionPrimary: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: colors.customerGreen,
+    borderRadius: radius.md,
+    paddingVertical: 12,
+    minHeight: 44,
+  },
+  actionPrimaryText: { fontFamily: fonts.bodyBold, fontSize: 15, color: '#FFF' },
+  actionSecondary: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: '#FFF',
+    borderRadius: radius.md,
+    paddingVertical: 12,
+    minHeight: 44,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: '#E5E5EA',
+  },
+  actionSecondaryText: { fontFamily: fonts.bodyBold, fontSize: 15, color: colors.partner.accent },
+
+  pitchHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: space[1],
+  },
+  pitchBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#FFF',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: radius.pill,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: '#E5E5EA',
+  },
+  pitchBadgeText: { fontFamily: fonts.body, fontSize: 11, color: '#8E8E93' },
+  progressPill: { alignItems: 'flex-end', gap: 4 },
+  progressText: { fontFamily: fonts.bodySemi, fontSize: 11, color: colors.partner.accent },
+  progressTrack: {
+    width: 72,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#E5E5EA',
+    overflow: 'hidden',
+  },
+  progressFill: { height: '100%', backgroundColor: colors.partner.accent, borderRadius: 2 },
+
+  disclosure: {
+    backgroundColor: '#FFF',
+    borderRadius: radius.md,
+    marginTop: space[2],
+    overflow: 'hidden',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: '#E5E5EA',
+  },
+  disclosureHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: space[4],
+    paddingVertical: 12,
+    minHeight: 44,
+  },
+  disclosureHeadLeft: { flex: 1, marginRight: space[2] },
+  disclosureTitle: { fontFamily: fonts.bodySemi, fontSize: 15, color: colors.text.primary },
+  disclosureSub: { fontFamily: fonts.body, fontSize: 13, color: '#8E8E93', marginTop: 2 },
+  disclosureBody: {
+    paddingHorizontal: space[4],
+    paddingBottom: space[3],
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: '#E5E5EA',
+  },
+  scriptText: { fontFamily: fonts.body, fontSize: 14, color: colors.text.secondary, lineHeight: 21, fontStyle: 'italic' },
+  scriptBold: { fontFamily: fonts.bodyBold, color: colors.text.primary, fontStyle: 'normal' },
+
+  pointsGroup: {
+    backgroundColor: '#FFF',
+    borderRadius: radius.md,
+    marginTop: space[2],
+    padding: space[3],
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: '#E5E5EA',
+  },
+  pointsLabel: {
+    fontFamily: fonts.bodySemi,
+    fontSize: 13,
+    color: '#8E8E93',
+    marginBottom: space[2],
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
+  },
+  pointRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: space[3],
+    paddingVertical: 8,
+    paddingHorizontal: space[1],
+    borderRadius: radius.sm,
+  },
+  pointRowDone: { backgroundColor: 'rgba(37,99,235,0.04)' },
+  pointCircle: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 2,
+    borderColor: colors.partner.accent,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 1,
+  },
+  pointCircleDone: { backgroundColor: colors.partner.accent, borderColor: colors.partner.accent },
+  pointText: { flex: 1, fontFamily: fonts.body, fontSize: 14, color: colors.text.primary, lineHeight: 20 },
+  pointTextDone: { color: '#8E8E93', textDecorationLine: 'line-through' },
+  pointsDoneBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: space[2],
+    padding: space[2],
+    backgroundColor: colors.customer.accentSoft,
+    borderRadius: radius.sm,
+  },
+  pointsDoneText: { fontFamily: fonts.bodySemi, fontSize: 12, color: colors.customerGreenDark },
+
+  noteToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space[2],
+    paddingHorizontal: space[4],
+    paddingVertical: 12,
+    minHeight: 44,
+  },
+  noteToggleText: { flex: 1, fontFamily: fonts.body, fontSize: 15, color: colors.partner.accent },
+  noteSavedDot: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: colors.customerGreen,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  noteInput: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: '#E5E5EA',
+    paddingHorizontal: space[4],
+    paddingVertical: space[3],
+    minHeight: 72,
+    fontFamily: fonts.body,
+    fontSize: 14,
+    color: colors.text.primary,
+    textAlignVertical: 'top',
+  },
+
+  greetingScroll: { paddingVertical: space[1] },
+  greetingWrap: { marginRight: 12, position: 'relative' },
+  greetingOverlay: {
+    position: 'absolute',
+    bottom: 10,
+    right: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(15,23,42,0.55)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: radius.pill,
+  },
+  greetingOverlayText: { fontFamily: fonts.bodySemi, fontSize: 10, color: '#FFF' },
+  dotRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: space[1],
+    marginBottom: space[2],
+  },
+
+  footer: {
+    textAlign: 'center',
+    fontFamily: fonts.body,
+    fontSize: 12,
+    color: '#AEAEB2',
+    marginTop: space[5],
+    marginHorizontal: space[6],
+  },
+
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: colors.surface.overlay,
+    justifyContent: 'flex-end',
+  },
+  modalBackdropCenter: {
+    flex: 1,
+    backgroundColor: colors.surface.overlay,
+    justifyContent: 'center',
+    paddingHorizontal: space[5],
+  },
+  modalSheet: {
+    backgroundColor: '#FFF',
+    borderTopLeftRadius: radius.sheet,
+    borderTopRightRadius: radius.sheet,
+    paddingHorizontal: space[5],
+    paddingBottom: space[6],
+    paddingTop: space[2],
+  },
+  sheetHandle: {
+    width: 36,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: '#D1D1D6',
+    alignSelf: 'center',
+    marginBottom: space[4],
+  },
+  sheetTitle: { ...typeScale.heading, color: colors.text.primary },
+  sheetSub: { ...typeScale.caption, color: colors.text.tertiary, marginTop: 2, marginBottom: space[4] },
+  bubble: {
+    backgroundColor: '#E9E9EB',
+    borderRadius: 18,
+    borderBottomLeftRadius: 4,
+    padding: space[3],
+    marginBottom: space[3],
+  },
+  bubbleText: { fontFamily: fonts.body, fontSize: 14, color: colors.text.primary, lineHeight: 20 },
+  sheetMeta: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: space[4] },
+  sheetMetaText: { fontFamily: fonts.body, fontSize: 13, color: colors.customerGreen },
+  sheetPrimary: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: colors.customerGreen,
+    borderRadius: radius.md,
+    paddingVertical: 14,
+    minHeight: 50,
+  },
+  sheetPrimaryText: { fontFamily: fonts.bodyBold, fontSize: 16, color: '#FFF' },
+  sheetCancel: { alignItems: 'center', paddingVertical: space[3], marginTop: space[1] },
+  sheetCancelText: { fontFamily: fonts.body, fontSize: 16, color: colors.partner.accent },
+
+  downloadSheet: {
+    backgroundColor: '#FFF',
+    borderRadius: radius.xl,
+    padding: space[5],
+    alignItems: 'center',
+  },
+  downloadIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: colors.customer.accentSoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: space[3],
+  },
+  downloadTitle: { ...typeScale.heading, color: colors.text.primary, marginBottom: space[1] },
+  downloadSub: {
+    ...typeScale.caption,
+    color: colors.text.secondary,
+    textAlign: 'center',
+    marginBottom: space[4],
+    lineHeight: 18,
+  },
+});

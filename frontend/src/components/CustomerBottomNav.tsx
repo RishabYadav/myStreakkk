@@ -4,64 +4,50 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { colors, fonts, shadows, space, type as typeScale, touch } from '../theme';
-import { TabId } from '../types';
+import { customerTheme } from '../theme/customerTheme';
+import { CustomerTabId } from '../types';
 import { PulseScale } from './ui/motion';
 
 interface Props {
-  activeTab: TabId;
-  onTabChange: (tab: TabId) => void;
+  activeTab: CustomerTabId;
+  onTabChange: (tab: CustomerTabId) => void;
   visible?: boolean;
 }
 
-const TABS: { id: TabId; label: string; icon: keyof typeof Feather.glyphMap }[] = [
-  { id: 'streak', label: 'Streak', icon: 'zap' },
-  { id: 'grow', label: 'Grow', icon: 'trending-up' },
-  { id: 'customers', label: 'Customers', icon: 'users' },
+const TABS: { id: CustomerTabId; label: string; icon: keyof typeof Feather.glyphMap }[] = [
+  { id: 'home', label: 'Protection', icon: 'shield' },
   { id: 'profile', label: 'Profile', icon: 'user' },
 ];
 
-export default function BottomNav({ activeTab, onTabChange, visible = true }: Props) {
+export default function CustomerBottomNav({ activeTab, onTabChange, visible = true }: Props) {
   const insets = useSafeAreaInsets();
   if (!visible) return null;
-
-  const isStreakActive = activeTab === 'streak';
 
   return (
     <View style={[styles.wrap, shadows.nav, { paddingBottom: Math.max(insets.bottom, space[2]) }]}>
       {TABS.map((tab) => {
-        const active = tab.id === 'streak' ? isStreakActive : activeTab === tab.id;
-        const isGrow = tab.id === 'grow';
+        const active = activeTab === tab.id;
         return (
           <Pressable
             key={tab.id}
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              onTabChange(tab.id === 'streak' ? 'streak' : tab.id);
+              onTabChange(tab.id);
             }}
             style={styles.item}
             accessibilityRole="button"
             accessibilityState={{ selected: active }}
             accessibilityLabel={tab.label}
           >
-            {active && <View style={[styles.topIndicator, isGrow && styles.topIndicatorGrow]} />}
-            {active && (tab.id === 'streak' || isGrow) ? (
-              <PulseScale min={1} max={isGrow ? 1.12 : 1.14} duration={1400}>
-                <Feather
-                  name={tab.icon}
-                  size={22}
-                  color={isGrow ? colors.customerGreen : colors.partner.accent}
-                />
+            {active && <View style={styles.topIndicator} />}
+            {active ? (
+              <PulseScale min={1} max={1.12} duration={1400}>
+                <Feather name={tab.icon} size={22} color={customerTheme.accent} />
               </PulseScale>
             ) : (
-              <Feather
-                name={tab.icon}
-                size={22}
-                color={active ? colors.partner.accent : colors.text.tertiary}
-              />
+              <Feather name={tab.icon} size={22} color={colors.text.tertiary} />
             )}
-            <Text style={[styles.label, active && styles.labelActive, active && isGrow && styles.labelActiveGrow]}>
-              {tab.label}
-            </Text>
+            <Text style={[styles.label, active && styles.labelActive]}>{tab.label}</Text>
           </Pressable>
         );
       })}
@@ -76,9 +62,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: 'rgba(255,255,255,0.96)',
     borderTopWidth: 1,
-    borderTopColor: colors.border.default,
+    borderTopColor: customerTheme.accentBorder,
     paddingTop: space[2],
-    paddingHorizontal: space[2],
+    paddingHorizontal: space[6],
     minHeight: 56,
   },
   item: {
@@ -95,10 +81,7 @@ const styles = StyleSheet.create({
     width: 24,
     height: 2,
     borderRadius: 1,
-    backgroundColor: colors.partner.accent,
-  },
-  topIndicatorGrow: {
-    backgroundColor: colors.customerGreen,
+    backgroundColor: customerTheme.accent,
   },
   label: {
     fontFamily: fonts.bodySemi,
@@ -108,9 +91,6 @@ const styles = StyleSheet.create({
   },
   labelActive: {
     fontFamily: fonts.bodyBold,
-    color: colors.partner.accent,
-  },
-  labelActiveGrow: {
-    color: colors.customerGreen,
+    color: customerTheme.accent,
   },
 });

@@ -1,7 +1,7 @@
 import React, { useCallback, useState } from 'react';
 import { View, StyleSheet, Pressable, Text } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useFonts, Sora_700Bold, Sora_800ExtraBold } from '@expo-google-fonts/sora';
 import {
   PlusJakartaSans_500Medium,
@@ -12,7 +12,7 @@ import * as Haptics from 'expo-haptics';
 
 import { colors, fonts, space, radius, type as typeScale } from './src/theme';
 import { AppLoadingSkeleton } from './src/components/ui/Skeleton';
-import { AgentState, Customer, TabId } from './src/types';
+import { AgentState, Customer, TabId, AppFlow, CustomerTabId } from './src/types';
 import {
   INITIAL_AGENT,
   INITIAL_CUSTOMERS,
@@ -24,13 +24,18 @@ import {
 import { postDemoReset, postEvent } from './src/services/api';
 
 import BottomNav from './src/components/BottomNav';
+import CustomerBottomNav from './src/components/CustomerBottomNav';
 import BookingSheet from './src/components/BookingSheet';
 import QuestionnaireSheet from './src/components/QuestionnaireSheet';
+import EntryScreen from './src/screens/EntryScreen';
 import StreakHome from './src/screens/StreakHome';
 import MyCustomers from './src/screens/MyCustomers';
 import CustomerFile from './src/screens/CustomerFile';
 import ExpansionGlimpse from './src/screens/ExpansionGlimpse';
+import GrowScreen from './src/screens/GrowScreen';
 import Profile from './src/screens/Profile';
+import CustomerProfile from './src/screens/CustomerProfile';
+import FlowNavBar, { FlowNavVariant, flowNavStatusBar } from './src/components/FlowNavBar';
 
 const ANJALI_ID = 'C5501';
 
@@ -51,9 +56,11 @@ export default function App() {
     PlusJakartaSans_700Bold,
   });
 
+  const [appFlow, setAppFlow] = useState<AppFlow>('entry');
   const [agent, setAgent] = useState<AgentState>({ ...INITIAL_AGENT });
   const [customers, setCustomers] = useState<Customer[]>(cloneCustomers(INITIAL_CUSTOMERS));
   const [activeTab, setActiveTab] = useState<TabId>('streak');
+  const [customerTab, setCustomerTab] = useState<CustomerTabId>('home');
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
   const [showExpansion, setShowExpansion] = useState(false);
   const [isOffline, setIsOffline] = useState(false);
@@ -134,23 +141,35 @@ export default function App() {
     setBookingSheetOpen(false);
     setQuestionnaireOpen(false);
     setActiveTab('streak');
+    setCustomerTab('home');
+    setAppFlow('entry');
     setIsOffline(false);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
   };
 
-  const handleTabChange = (tab: TabId) => {
-    if (tab === 'streak') {
+  const handleSelectFlow = (flow: Exclude<AppFlow, 'entry'>) => {
+    setAppFlow(flow);
+    if (flow === 'partner') {
       setActiveTab('streak');
     } else {
-      setActiveTab(tab);
+      setCustomerTab('home');
     }
-    if (tab !== 'customers') setSelectedCustomerId(null);
+    setSelectedCustomerId(null);
     setShowExpansion(false);
   };
 
-  const handleViewChange = (mode: 'streak' | 'customer_pov') => {
-    setActiveTab(mode);
+  const handleSwitchExperience = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setAppFlow('entry');
+    setActiveTab('streak');
+    setCustomerTab('home');
     setSelectedCustomerId(null);
+    setShowExpansion(false);
+  };
+
+  const handleTabChange = (tab: TabId) => {
+    setActiveTab(tab);
+    if (tab !== 'customers') setSelectedCustomerId(null);
     setShowExpansion(false);
   };
 
@@ -162,24 +181,152 @@ export default function App() {
     );
   }
 
-  const statusBarStyle =
-    selectedCustomerId || activeTab === 'profile' ? 'dark' : 'light';
+  if (appFlow === 'entry') {
+    return (
+      <SafeAreaProvider>
+        <StatusBar style="light" />
+        <EntryScreen onSelectFlow={handleSelectFlow} />
+      </SafeAreaProvider>
+    );
+  }
 
+  return (
+    <SafeAreaProvider>
+      <MainShell
+        appFlow={appFlow}
+        agent={agent}
+        customers={customers}
+        activeTab={activeTab}
+        customerTab={customerTab}
+        selectedCustomerId={selectedCustomerId}
+        showExpansion={showExpansion}
+        isOffline={isOffline}
+        hasBooked={hasBooked}
+        hasEnriched={hasEnriched}
+        bookingSheetOpen={bookingSheetOpen}
+        questionnaireOpen={questionnaireOpen}
+        anjali={anjali}
+        getCustomer={getCustomer}
+        onTabChange={handleTabChange}
+        onCustomerTabChange={setCustomerTab}
+        onSwitchExperience={handleSwitchExperience}
+        onSelectCustomer={setSelectedCustomerId}
+        onShowExpansion={setShowExpansion}
+        onOpenBooking={handleOpenBooking}
+        onUpdateCoins={handleUpdateCoins}
+        onToggleOffline={() => setIsOffline((v) => !v)}
+        onCloseBooking={() => setBookingSheetOpen(false)}
+        onConfirmBooking={handleConfirmBooking}
+        onCloseQuestionnaire={() => setQuestionnaireOpen(false)}
+        onQuestionnaireSubmit={handleQuestionnaireSubmit}
+        onOpenQuestionnaire={() => setQuestionnaireOpen(true)}
+        onDemoReset={handleDemoReset}
+      />
+    </SafeAreaProvider>
+  );
+}
+
+interface MainShellProps {
+  appFlow: Exclude<AppFlow, 'entry'>;
+  agent: AgentState;
+  customers: Customer[];
+  activeTab: TabId;
+  customerTab: CustomerTabId;
+  selectedCustomerId: string | null;
+  showExpansion: boolean;
+  isOffline: boolean;
+  hasBooked: boolean;
+  hasEnriched: boolean;
+  bookingSheetOpen: boolean;
+  questionnaireOpen: boolean;
+  anjali: Customer;
+  getCustomer: (id: string | null) => Customer;
+  onTabChange: (tab: TabId) => void;
+  onCustomerTabChange: (tab: CustomerTabId) => void;
+  onSwitchExperience: () => void;
+  onSelectCustomer: (id: string | null) => void;
+  onShowExpansion: (show: boolean) => void;
+  onOpenBooking: () => void;
+  onUpdateCoins: (amount: number) => void;
+  onToggleOffline: () => void;
+  onCloseBooking: () => void;
+  onConfirmBooking: () => void;
+  onCloseQuestionnaire: () => void;
+  onQuestionnaireSubmit: (termYes: boolean) => void;
+  onOpenQuestionnaire: () => void;
+  onDemoReset: () => void;
+}
+
+function MainShell({
+  appFlow,
+  agent,
+  customers,
+  activeTab,
+  customerTab,
+  selectedCustomerId,
+  showExpansion,
+  isOffline,
+  hasBooked,
+  hasEnriched,
+  bookingSheetOpen,
+  questionnaireOpen,
+  anjali,
+  getCustomer,
+  onTabChange,
+  onCustomerTabChange,
+  onSwitchExperience,
+  onSelectCustomer,
+  onShowExpansion,
+  onOpenBooking,
+  onUpdateCoins,
+  onToggleOffline,
+  onCloseBooking,
+  onConfirmBooking,
+  onCloseQuestionnaire,
+  onQuestionnaireSubmit,
+  onOpenQuestionnaire,
+  onDemoReset,
+}: MainShellProps) {
+  const isCustomerFlow = appFlow === 'customer';
   const hideNav = Boolean(selectedCustomerId) || showExpansion;
 
+  const flowNavConfig = ((): { variant: FlowNavVariant; badge: string } | null => {
+    if (hideNav) return null;
+    if (isCustomerFlow) {
+      return { variant: 'customer-light', badge: 'Preview' };
+    }
+    if (activeTab === 'grow' || activeTab === 'profile') {
+      return { variant: 'partner-light', badge: 'Partner' };
+    }
+    return { variant: 'partner-hero', badge: 'Partner' };
+  })();
+
+  const statusBarStyle = flowNavConfig ? flowNavStatusBar(flowNavConfig.variant) : 'dark';
+
   const renderMain = () => {
+    if (isCustomerFlow) {
+      if (customerTab === 'profile') {
+        return <CustomerProfile customer={anjali} />;
+      }
+      return (
+        <ExpansionGlimpse
+          customer={anjali}
+          hasBooked={hasBooked}
+          hasEnriched={hasEnriched}
+          fabBottomOffset={18}
+        />
+      );
+    }
+
     if (showExpansion) {
       return (
         <ExpansionGlimpse
           customer={getCustomer(selectedCustomerId)}
           hasBooked={hasBooked && getCustomer(selectedCustomerId).customer_id === ANJALI_ID}
           hasEnriched={hasEnriched && getCustomer(selectedCustomerId).customer_id === ANJALI_ID}
-          viewMode="customer_pov"
+          previewMode
+          onBack={() => onShowExpansion(false)}
           fabBottomOffset={18}
-          onChangeView={(mode) => {
-            setShowExpansion(false);
-            if (mode === 'streak') setActiveTab('streak');
-          }}
         />
       );
     }
@@ -190,9 +337,9 @@ export default function App() {
           customer={getCustomer(selectedCustomerId)}
           hasBooked={hasBooked && selectedCustomerId === ANJALI_ID}
           hasEnriched={hasEnriched && selectedCustomerId === ANJALI_ID}
-          onBack={() => setSelectedCustomerId(null)}
-          onOpenQuestionnaire={() => setQuestionnaireOpen(true)}
-          onOpenExpansion={() => setShowExpansion(true)}
+          onBack={() => onSelectCustomer(null)}
+          onOpenQuestionnaire={onOpenQuestionnaire}
+          onOpenExpansion={() => onShowExpansion(true)}
         />
       );
     }
@@ -203,36 +350,24 @@ export default function App() {
           <StreakHome
             agent={agent}
             hasBooked={hasBooked}
-            viewMode="streak"
-            onChangeView={handleViewChange}
-            onOpenBooking={handleOpenBooking}
-            onUpdateCoins={handleUpdateCoins}
-            onDemoReset={handleDemoReset}
+            onOpenBooking={onOpenBooking}
+            onUpdateCoins={onUpdateCoins}
+            onDemoReset={onDemoReset}
           />
         );
-      case 'customer_pov':
-        return (
-          <ExpansionGlimpse
-            customer={anjali}
-            hasBooked={hasBooked}
-            hasEnriched={hasEnriched}
-            viewMode="customer_pov"
-            onChangeView={handleViewChange}
-          />
-        );
+      case 'grow':
+        return <GrowScreen customers={customers} streakDay={agent.streak_day} />;
       case 'customers':
         return (
-          <MyCustomers
-            customers={customers}
-            onOpenCustomer={(id) => setSelectedCustomerId(id)}
-          />
+          <MyCustomers customers={customers} onOpenCustomer={(id) => onSelectCustomer(id)} />
         );
       case 'profile':
         return (
           <Profile
             agent={agent}
             isOffline={isOffline}
-            onToggleOffline={() => setIsOffline((v) => !v)}
+            onToggleOffline={onToggleOffline}
+            onSwitchExperience={onSwitchExperience}
           />
         );
       default:
@@ -241,34 +376,43 @@ export default function App() {
   };
 
   return (
-    <SafeAreaProvider>
-      <SafeAreaView style={styles.root} edges={['top']}>
-        <StatusBar style={statusBarStyle} />
-        {isOffline && (
-          <View style={styles.offlineBar}>
-            <View style={styles.offlineLeft}>
-              <View style={styles.offlineDot} />
-              <Text style={styles.offlineText}>Offline Mode · Real-time sync pending</Text>
-            </View>
-            <Pressable onPress={() => setIsOffline(false)} style={styles.offlineBtn}>
-              <Text style={styles.offlineBtnText}>Back Online</Text>
-            </Pressable>
+    <View style={styles.root}>
+      <StatusBar style={statusBarStyle} />
+      {isOffline && (
+        <View style={styles.offlineBar}>
+          <View style={styles.offlineLeft}>
+            <View style={styles.offlineDot} />
+            <Text style={styles.offlineText}>Offline Mode · Real-time sync pending</Text>
           </View>
-        )}
-        <View style={styles.app}>{renderMain()}</View>
-        <BottomNav activeTab={activeTab} onTabChange={handleTabChange} visible={!hideNav} />
-        <BookingSheet
-          visible={bookingSheetOpen}
-          onClose={() => setBookingSheetOpen(false)}
-          onConfirm={handleConfirmBooking}
+          <Pressable onPress={onToggleOffline} style={styles.offlineBtn}>
+            <Text style={styles.offlineBtnText}>Back Online</Text>
+          </Pressable>
+        </View>
+      )}
+      {flowNavConfig ? (
+        <FlowNavBar
+          variant={flowNavConfig.variant}
+          badge={flowNavConfig.badge}
+          onBack={onSwitchExperience}
         />
-        <QuestionnaireSheet
-          visible={questionnaireOpen}
-          onClose={() => setQuestionnaireOpen(false)}
-          onSubmit={handleQuestionnaireSubmit}
+      ) : null}
+      <View style={styles.app}>{renderMain()}</View>
+      {isCustomerFlow ? (
+        <CustomerBottomNav
+          activeTab={customerTab}
+          onTabChange={onCustomerTabChange}
+          visible={!hideNav}
         />
-      </SafeAreaView>
-    </SafeAreaProvider>
+      ) : (
+        <BottomNav activeTab={activeTab} onTabChange={onTabChange} visible={!hideNav} />
+      )}
+      <BookingSheet visible={bookingSheetOpen} onClose={onCloseBooking} onConfirm={onConfirmBooking} />
+      <QuestionnaireSheet
+        visible={questionnaireOpen}
+        onClose={onCloseQuestionnaire}
+        onSubmit={onQuestionnaireSubmit}
+      />
+    </View>
   );
 }
 
