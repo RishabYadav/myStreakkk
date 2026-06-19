@@ -37,8 +37,8 @@ function createGeminiClient(): LlmClient {
         model: env.GEMINI_MODEL,
         contents: fullPrompt,
         config: {
-          temperature: 0.8,
-          maxOutputTokens: 800,
+          temperature: 0.9,
+          maxOutputTokens: 300,
           httpOptions: { timeout: env.GEMINI_TIMEOUT_MS },
         },
       });
@@ -66,8 +66,8 @@ function createOpenAIClient(): LlmClient {
       const response = await client.chat.completions.create({
         model: env.OPENAI_MODEL,
         messages: [{ role: 'user', content: fullPrompt }],
-        temperature: 0.8,
-        max_tokens: 800,
+        temperature: 0.9,
+        max_tokens: 300,
       });
 
       return response.choices[0]?.message?.content || '';
