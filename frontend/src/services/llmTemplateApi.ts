@@ -85,10 +85,10 @@ export function insightTextForCustomer(customer: Customer): string {
   return 'Health & term gaps hold you back';
 }
 
-/** UI section id → backend API key (greetings id=2 → greeting key=2). */
+/** UI section id → backend API key. Only Cards (2) and Health (3) call the LLM API. */
 export function getSectionApiKey(sectionId: number): TemplateApiKey | null {
   if (sectionId === 2) return 2;
-  if (sectionId === 3 || sectionId === 4) return 3;
+  if (sectionId === 3) return 3;
   return null;
 }
 
@@ -209,7 +209,7 @@ export function buildTemplatePayload(
   customer: Customer
 ): ReturnType<typeof buildScoreCardPayload> | ReturnType<typeof buildGreetingPayload> | null {
   const apiKey = getSectionApiKey(sectionId);
-  if (apiKey === 1 || apiKey === 2) return buildGreetingPayload(customer);
+  if (apiKey === 2) return buildGreetingPayload(customer);
   if (apiKey === 3) return buildScoreCardPayload(customer);
   return null;
 }

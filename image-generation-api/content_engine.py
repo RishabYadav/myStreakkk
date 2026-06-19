@@ -5,6 +5,11 @@ from google.genai import types
 from pydantic import BaseModel
 
 from openai_image import generate_poster_image as generate_openai_poster_image
+from birthday_prompts import (
+    BIRTHDAY_SYSTEM_PROMPT,
+    build_birthday_image_prompt,
+    build_birthday_user_prompt,
+)
 from partners import Partner
 from prompts import SYSTEM_PROMPT, build_user_prompt
 from score_card_prompts import (
@@ -42,13 +47,19 @@ class ShareableContentResult(BaseModel):
     poster_error: str | None = None
 
 
-def generate_content(client: genai.Client, partner: Partner) -> ShareableContent:
-    user_prompt = build_user_prompt(partner)
+def generate_content(
+    client: genai.Client,
+    partner: Partner,
+    *,
+    system_instruction: str = SYSTEM_PROMPT,
+    user_prompt: str | None = None,
+) -> ShareableContent:
+    prompt = user_prompt or build_user_prompt(partner)
     response = client.models.generate_content(
         model=CONTENT_MODEL,
-        contents=user_prompt,
+        contents=prompt,
         config=types.GenerateContentConfig(
-            system_instruction=SYSTEM_PROMPT,
+            system_instruction=system_instruction,
             response_mime_type="application/json",
             response_schema=ShareableContent,
         ),
@@ -63,6 +74,35 @@ def generate_openai_poster(
     if image_data:
         return PosterImage.model_validate(image_data), None
     return None, error
+
+
+def generate_birthday_card(
+    client: genai.Client,
+    partner: Partner,
+) -> ShareableContentResult:
+    content = generate_content(
+        client,
+        partner,
+        system_instruction=BIRTHDAY_SYSTEM_PROMPT,
+        user_prompt=build_birthday_user_prompt(partner),
+    )
+    poster_image, poster_error = generate_openai_poster(
+        build_birthday_image_prompt(
+            content.image_prompt,
+            partner.partner_name,
+            content.image_heading,
+            content.image_quote,
+        )
+    )
+
+    return ShareableContentResult(
+        key=2,
+        partner_code=partner.partner_code,
+        is_birthday_today=True,
+        content=content,
+        poster_image=poster_image,
+        poster_error=poster_error,
+    )
 
 
 def generate_wishing_content(
@@ -147,8 +187,11 @@ def generate_shareable_content(
             current_date=current_date,
         )
 
-    if key not in (1, 2):
-        raise ValueError("key must be 1, 2 (wishing), or 3 (protection score card)")
+    if key == 2:
+        return generate_birthday_card(client, partner)
+
+    if key not in (1,):
+        raise ValueError("key must be 1, 2 (birthday card), or 3 (protection score card)")
 
     return generate_wishing_content(
         client,

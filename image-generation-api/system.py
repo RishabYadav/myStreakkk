@@ -29,7 +29,7 @@ class GenerateContentRequest(BaseModel):
     key: int = Field(
         default=1,
         examples=[1],
-        description="1 = wishing content, 2 = greeting card with GPT image, 3 = protection score card",
+        description="1 = wishing content, 2 = happy birthday card (GPT image), 3 = protection score card",
     )
     partner_code: str = Field(..., examples=["12314"])
     partner_name: str = Field(..., examples=["Abhishek"])
@@ -92,7 +92,7 @@ class GenerateContentRequest(BaseModel):
     @model_validator(mode="after")
     def validate_key_requirements(self) -> "GenerateContentRequest":
         if self.key not in (1, 2, 3):
-            raise ValueError("key must be 1, 2 (wishing), or 3 (protection score card)")
+            raise ValueError("key must be 1, 2 (birthday card), or 3 (protection score card)")
 
         if self.key in (1, 2):
             if not self.partner_group:
@@ -177,7 +177,10 @@ def generate_content(request: GenerateContentRequest):
             current_date=request.current_date,
         )
 
-    include_poster = request.include_poster or request.key == 2
+    if request.key == 2:
+        return generate_shareable_content(get_client(), partner, key=2)
+
+    include_poster = request.include_poster
     client = get_client()
     return generate_shareable_content(
         client,
