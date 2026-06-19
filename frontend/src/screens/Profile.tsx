@@ -1,9 +1,8 @@
 import React from 'react';
-import { View, Text, ScrollView, Pressable, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Feather } from '@expo/vector-icons';
-import * as Haptics from 'expo-haptics';
-import { colors, fonts, shadows, radius, space, type as typeScale, touch } from '../theme';
+import { colors, fonts, radius, space, type as typeScale } from '../theme';
 import { AgentState } from '../types';
 import { getInitials } from '../utils';
 import Card from '../components/ui/Card';
@@ -19,9 +18,6 @@ import CoinIcon from '../components/ui/CoinIcon';
 
 interface Props {
   agent: AgentState;
-  isOffline: boolean;
-  onToggleOffline: () => void;
-  onSwitchExperience?: () => void;
 }
 
 function InfoRow({
@@ -52,7 +48,7 @@ function InfoRow({
   );
 }
 
-export default function Profile({ agent, isOffline, onToggleOffline, onSwitchExperience }: Props) {
+export default function Profile({ agent }: Props) {
   const initials = getInitials(agent.name);
 
   return (
@@ -125,54 +121,6 @@ export default function Profile({ agent, isOffline, onToggleOffline, onSwitchExp
         </FadeSlideIn>
 
         <FadeSlideIn index={2}>
-          <View style={styles.simulator}>
-            <View style={styles.simHeader}>
-              <Text style={styles.simTitle}>Developer simulator</Text>
-              <LiveDot color={isOffline ? colors.status.warning : colors.status.success} size={6} />
-            </View>
-            <Text style={styles.simSub}>
-              Toggle simulated connection status to verify the offline warning indicator.
-            </Text>
-            <View style={styles.simRow}>
-              <BreatheView min={0.85} max={1} duration={isOffline ? 900 : 2000}>
-                <Text style={styles.simStatus}>{isOffline ? 'Offline' : 'Online'}</Text>
-              </BreatheView>
-              <Pressable
-                onPress={() => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  onToggleOffline();
-                }}
-                style={[styles.simBtn, isOffline && styles.simBtnActive]}
-                accessibilityRole="button"
-              >
-                <Text style={[styles.simBtnText, isOffline && styles.simBtnTextActive]}>
-                  {isOffline ? 'Go online' : 'Go offline'}
-                </Text>
-              </Pressable>
-            </View>
-          </View>
-        </FadeSlideIn>
-
-        {onSwitchExperience ? (
-          <FadeSlideIn index={3}>
-            <Pressable
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                onSwitchExperience();
-              }}
-              style={styles.switchBtn}
-            >
-              <Feather name="repeat" size={18} color={colors.partner.accent} />
-              <View style={styles.switchTextWrap}>
-                <Text style={styles.switchTitle}>Switch experience</Text>
-                <Text style={styles.switchSub}>Return to partner or customer selection</Text>
-              </View>
-              <Feather name="chevron-right" size={18} color="#94A3B8" />
-            </Pressable>
-          </FadeSlideIn>
-        ) : null}
-
-        <FadeSlideIn index={onSwitchExperience ? 4 : 3}>
           <Text style={styles.footer}>
             Regulated under IRDAI digital agency guidelines. Activity metrics undergo tamper-proof auditing.
           </Text>
@@ -263,42 +211,6 @@ const styles = StyleSheet.create({
   metricCoinRow: { flexDirection: 'row', alignItems: 'center', gap: space[2] },
   metricValue: { fontFamily: fonts.headingExtra, fontSize: typeScale.title.fontSize - 4, color: colors.text.primary },
   coinValue: { color: colors.partner.accent },
-  simulator: {
-    backgroundColor: colors.surface.canvas,
-    borderRadius: radius.lg,
-    padding: space[4],
-    borderWidth: 1,
-    borderColor: colors.border.default,
-  },
-  simHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  simTitle: { ...typeScale.label, color: colors.text.tertiary },
-  simSub: { ...typeScale.caption, color: colors.text.secondary, marginTop: space[1], marginBottom: space[3] },
-  simRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  simStatus: { fontFamily: fonts.bodyBold, fontSize: typeScale.bodySm.fontSize, color: colors.text.primary },
-  simBtn: {
-    backgroundColor: colors.border.subtle,
-    paddingHorizontal: space[3],
-    minHeight: 36,
-    justifyContent: 'center',
-    borderRadius: radius.sm,
-  },
-  simBtnActive: { backgroundColor: colors.status.warning },
-  simBtnText: { ...typeScale.label, color: colors.text.primary, fontSize: 10 },
-  simBtnTextActive: { color: colors.text.inverse },
-  switchBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space[3],
-    backgroundColor: colors.surface.card,
-    borderRadius: radius.lg,
-    padding: space[4],
-    borderWidth: 1,
-    borderColor: colors.border.default,
-    marginBottom: space[4],
-  },
-  switchTextWrap: { flex: 1 },
-  switchTitle: { fontFamily: fonts.bodySemi, fontSize: 15, color: colors.text.primary },
-  switchSub: { fontFamily: fonts.body, fontSize: 12, color: colors.text.tertiary, marginTop: 2 },
   footer: {
     ...typeScale.caption,
     color: colors.text.tertiary,

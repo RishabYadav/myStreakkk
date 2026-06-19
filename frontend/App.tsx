@@ -494,14 +494,7 @@ function MainShell({
           />
         );
       case 'profile':
-        return (
-          <Profile
-            agent={agent}
-            isOffline={isOffline}
-            onToggleOffline={onToggleOffline}
-            onSwitchExperience={onSwitchExperience}
-          />
-        );
+        return <Profile agent={agent} />;
       default:
         return null;
     }
