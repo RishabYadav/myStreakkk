@@ -42,14 +42,10 @@ interface Props {
   fabBottomOffset?: number;
 }
 
-function getTargetScore(customer: Customer, hasBooked: boolean, hasEnriched: boolean, extCount: number): number {
-  let base = customer.protection_intelligence_score;
-  if (customer.customer_id === ANJALI_ID) {
-    if (hasBooked && hasEnriched) base = 84;
-    else if (hasBooked) base = 75;
-    else if (hasEnriched) base = 71;
-  }
-  return Math.min(base + extCount * 4, 98);
+function getTargetScore(customer: Customer, hasBooked: boolean, hasEnriched: boolean, _extCount: number): number {
+  // Use the real score from the API directly.
+  // The backend already accounts for external policies in its PIS calculation.
+  return customer.protection_intelligence_score;
 }
 
 type ScoreTier = 'green' | 'yellow' | 'orange' | 'red';
@@ -112,16 +108,12 @@ function getSafetyVerdict(score: number) {
 function getBreakdownScore(
   customer: Customer,
   key: string,
-  hasBooked: boolean,
-  hasEnriched: boolean
+  _hasBooked: boolean,
+  _hasEnriched: boolean
 ): number {
+  // Use the real score from the API directly.
   const row = customer.score_breakdown.find((r) => r.key === key);
-  if (!row) return 0;
-  if (customer.customer_id !== ANJALI_ID) return row.score;
-  if (key === 'coverage_adequacy' && hasBooked) return hasEnriched ? 22 : 18;
-  if (key === 'family_risk_protection' && hasBooked) return hasEnriched ? 9 : 8;
-  if (key === 'data_confidence' && hasEnriched) return 9;
-  return row.score;
+  return row?.score ?? 0;
 }
 
 const LABEL_MAP: Record<string, string> = {
@@ -172,7 +164,7 @@ export default function ExpansionGlimpse({
     verdict.tier === 'red' ? 1.06 : verdict.tier === 'orange' ? 1.05 : verdict.tier === 'yellow' ? 1.04 : 1.02;
   const pulseDuration =
     verdict.tier === 'red' ? 1100 : verdict.tier === 'orange' ? 1250 : verdict.tier === 'yellow' ? 1400 : 1800;
-  const showExposureTip = customer.customer_id === ANJALI_ID && !hasBooked;
+  const showExposureTip = customer.weak_spots.length > 0;
 
   useEffect(() => {
     const start = displayScore;
@@ -210,9 +202,7 @@ export default function ExpansionGlimpse({
   };
 
   const getCoverageStatus = (row: Customer['coverage'][0]) => {
-    if (customer.customer_id !== ANJALI_ID) return { covered: row.covered, source: row.source };
-    if (row.id === 'health' && hasBooked) return { covered: true, source: 'sold_by_agent' as const };
-    if (row.id === 'term' && hasEnriched) return { covered: true, source: 'added_by_agent' as const };
+    // Use real coverage data from the API directly.
     return { covered: row.covered, source: row.source };
   };
 
@@ -358,11 +348,9 @@ export default function ExpansionGlimpse({
               </View>
             </View>
             <Text style={styles.tipBody}>
-              {customer.customer_id === ANJALI_ID && !hasBooked
+              {customer.customerTip || (customer.customer_id === ANJALI_ID && !hasBooked
                 ? 'Savings exposure detected: your motor policy renews in 9 days but you have no health coverage registered. Adding a combined health plan now can save up to 15% on combo premiums.'
-                : customer.customer_id === ANJALI_ID
-                  ? 'Your health and motor coverage are aligned. Keep policies verified to maintain your protection index.'
-                  : 'Maintain verified covers to elevate your protection index. Stay in touch with your designated advisor.'}
+                : 'Maintain verified covers to elevate your protection index. Stay in touch with your designated advisor.')}
             </Text>
             {showExposureTip && (
               <View style={styles.quoteRow}>

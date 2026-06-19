@@ -38,6 +38,7 @@ export interface AiLessonItem {
 export interface CustomerInsights {
   recommendations: AiRecommendation[];
   why_opportunity: string;
+  customer_tip: string;
   talking_points: string[];
   lesson_recommendations: AiLessonItem[];
   pis_at_generation: number;
@@ -78,14 +79,14 @@ export async function generateAndCacheInsights(
   // 4. Persist to DB
   const upsertQuery = `
     INSERT INTO customer_insights (
-      customer_id, recommendations, why_opportunity, talking_points,
+      customer_id, recommendations, why_opportunity, customer_tip, talking_points,
       lesson_recommendations, generated_at, triggered_by,
       pis_at_generation, os_at_generation
-    ) VALUES ($1, $2, $3, $4, $5, NOW(), $6, $7, $8)
+    ) VALUES ($1, $2, $3, $4, $5, $6, NOW(), $7, $8, $9)
     ON CONFLICT (customer_id) DO UPDATE SET
-      recommendations = $2, why_opportunity = $3, talking_points = $4,
-      lesson_recommendations = $5, generated_at = NOW(), triggered_by = $6,
-      pis_at_generation = $7, os_at_generation = $8
+      recommendations = $2, why_opportunity = $3, customer_tip = $4, talking_points = $5,
+      lesson_recommendations = $6, generated_at = NOW(), triggered_by = $7,
+      pis_at_generation = $8, os_at_generation = $9
     RETURNING *
   `;
 
@@ -93,6 +94,7 @@ export async function generateAndCacheInsights(
     customerId,
     JSON.stringify(aiOutput.recommendations),
     aiOutput.why_opportunity,
+    aiOutput.customer_tip,
     JSON.stringify(aiOutput.talking_points),
     JSON.stringify(aiOutput.lesson_recommendations),
     triggeredBy,
@@ -105,6 +107,7 @@ export async function generateAndCacheInsights(
   return {
     recommendations: aiOutput.recommendations,
     why_opportunity: aiOutput.why_opportunity,
+    customer_tip: aiOutput.customer_tip,
     talking_points: aiOutput.talking_points,
     lesson_recommendations: aiOutput.lesson_recommendations,
     pis_at_generation: pis.protection_intelligence_score,
@@ -128,6 +131,7 @@ export async function getCachedInsights(customerId: string): Promise<CustomerIns
   return {
     recommendations: row.recommendations,
     why_opportunity: row.why_opportunity,
+    customer_tip: row.customer_tip,
     talking_points: row.talking_points,
     lesson_recommendations: row.lesson_recommendations,
     pis_at_generation: parseFloat(row.pis_at_generation),
@@ -212,6 +216,7 @@ Generate a JSON object with these exact keys:
     }
   ],
   "why_opportunity": "A 2-3 sentence paragraph explaining why this customer is an opportunity for the advisor RIGHT NOW. Reference specific data points like renewal timing, coverage gaps, family situation, and conversion signals.",
+  "customer_tip": "A 2-sentence tip written FOR the customer in friendly, simple language. It should highlight their biggest risk or the single most impactful action they can take. No jargon, no advisor-speak. Example: 'Your family depends on your income, but you have no health cover. Adding a family floater now protects everyone and could save you 15% with a combo bundle.'",
   "talking_points": [
     "Natural conversation opener 1 referencing a specific data point",
     "Natural conversation opener 2",
@@ -245,6 +250,7 @@ Return ONLY the JSON object. No markdown, no explanation, no code blocks.`;
 function parseAiResponse(raw: string): {
   recommendations: AiRecommendation[];
   why_opportunity: string;
+  customer_tip: string;
   talking_points: string[];
   lesson_recommendations: AiLessonItem[];
 } {
@@ -273,6 +279,7 @@ function parseAiResponse(raw: string): {
   return {
     recommendations: parsed.recommendations.slice(0, 4),
     why_opportunity: parsed.why_opportunity,
+    customer_tip: parsed.customer_tip || '',
     talking_points: parsed.talking_points.slice(0, 5),
     lesson_recommendations: parsed.lesson_recommendations.slice(0, 3),
   };
@@ -354,6 +361,20 @@ function buildFallbackInsights(customer: any, pis: any, os: any) {
     }
   }
 
+  // Customer-facing tip
+  let customer_tip: string;
+  if (!customer.health_cover && customer.single_earner) {
+    customer_tip = `Your family depends on your income, but you have no health cover. Adding a family floater now protects everyone and could save you up to 15% with a combo bundle.`;
+  } else if (!customer.health_cover) {
+    customer_tip = `You're missing health coverage — one hospital visit could cost ₹3-5 lakhs out of pocket. Getting covered now locks in lower premiums at your current age.`;
+  } else if (!customer.term_cover && (customer.children || 0) > 0) {
+    customer_tip = `Your children depend on your income. A term plan secures their education and future even if something unexpected happens.`;
+  } else if (!customer.term_cover && customer.home_loan) {
+    customer_tip = `You have a home loan but no term cover. If something happens, your family would need to keep up with EMIs on their own.`;
+  } else {
+    customer_tip = `Your protection profile looks solid. Keep your policies verified and explore add-ons to stay ahead of rising costs.`;
+  }
+
   // Talking points
   const talking_points: string[] = [];
   if (customer.renewal_due_days != null && customer.renewal_due_days < 30) {
@@ -377,7 +398,7 @@ function buildFallbackInsights(customer: any, pis: any, os: any) {
     body: r.message.split('.')[0] + '.',
   }));
 
-  return { recommendations, why_opportunity, talking_points, lesson_recommendations };
+  return { recommendations, why_opportunity, customer_tip, talking_points, lesson_recommendations };
 }
 
 // ─── Helpers ──────────────────────────────────────────────────

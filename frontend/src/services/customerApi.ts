@@ -20,6 +20,7 @@ interface ApiCustomerRanked {
   renewsInDays: number;
   why: string[];
   whyOpportunity: string;
+  customerTip: string;
   score_breakdown: ScoreDimension[];
   coverage: CoverageRow[];
   weak_spots: string[];
@@ -95,6 +96,7 @@ function apiCustomerToFrontend(c: ApiCustomerRanked, index: number): Customer {
     renewsInDays: c.renewsInDays,
     why: c.why,
     whyOpportunity: c.whyOpportunity,
+    customerTip: c.customerTip || '',
     score_breakdown: c.score_breakdown,
     coverage: c.coverage,
     weak_spots: c.weak_spots,
@@ -160,6 +162,7 @@ export async function fetchCustomerFullProfile(customerId: string): Promise<{
       renewsInDays: d.renewsInDays,
       why: d.why,
       whyOpportunity: d.whyOpportunity,
+      customerTip: d.customerTip || '',
       score_breakdown: d.score_breakdown,
       coverage: d.coverage,
       weak_spots: d.weak_spots,

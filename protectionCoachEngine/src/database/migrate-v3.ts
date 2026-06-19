@@ -16,6 +16,9 @@ CREATE TABLE IF NOT EXISTS customer_insights (
   -- AI-generated prose: why this customer is an opportunity for the advisor
   why_opportunity TEXT NOT NULL DEFAULT '',
 
+  -- AI-generated customer-facing tip (shown on their protection portal)
+  customer_tip TEXT NOT NULL DEFAULT '',
+
   -- AI-generated talking points (JSON array of strings)
   talking_points JSONB NOT NULL DEFAULT '[]',
 
