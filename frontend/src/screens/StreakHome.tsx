@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -23,6 +23,7 @@ import { colors, fonts, shadows, radius, space, type as typeScale, touch } from 
 import { AgentState, MissionItem } from '../types';
 import { AI_SLIDES, ACTIVE_MISSIONS, FALLBACK_MISSIONS } from '../mockData';
 import { formatCountdown } from '../utils';
+import { getTimeGreeting } from '../utils/timeGreeting';
 import RewardsDesk from '../components/streak/RewardsDesk';
 import Toast from '../components/ui/Toast';
 import PressableScale from '../components/ui/PressableScale';
@@ -209,6 +210,7 @@ export default function StreakHome({
   onBack,
 }: Props) {
   const insets = useSafeAreaInsets();
+  const timeGreeting = useMemo(() => getTimeGreeting(), []);
   const [timer, setTimer] = useState(81574);
   const [slideIdx, setSlideIdx] = useState(0);
   const [activeMissions, setActiveMissions] = useState<MissionItem[]>(ACTIVE_MISSIONS);
@@ -331,7 +333,7 @@ export default function StreakHome({
             </Pressable>
 
             <View style={styles.heroIdentity}>
-              <Text style={styles.greeting}>Good morning,</Text>
+              <Text style={styles.greeting}>{timeGreeting},</Text>
               <Text style={styles.agentName}>{agent.name}</Text>
             </View>
 

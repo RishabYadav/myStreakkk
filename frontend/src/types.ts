@@ -50,6 +50,14 @@ export interface CadenceMission {
   tags: string[];
 }
 
+/** Shareable greeting card — backend sends static HTML with {NAME} placeholders. */
+export interface GrowCardTemplate {
+  id: string;
+  title: string;
+  shareMessageTemplate: string;
+  html: string;
+}
+
 export type AppFlow = 'entry' | 'partner' | 'customer';
 
 export type TabId = 'streak' | 'grow' | 'customers' | 'profile';

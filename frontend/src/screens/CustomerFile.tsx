@@ -1,17 +1,17 @@
 import React, { useMemo } from 'react';
 import { View, Text, ScrollView, StyleSheet } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, fonts, shadows, radius, space, type as typeScale, touch } from '../theme';
 import Button from '../components/ui/Button';
 import { Customer } from '../types';
-import ScoreRing from '../components/ScoreRing';
+import ScoreMeter from '../components/ScoreMeter';
 import CoverageSourceTag from '../components/CoverageSourceTag';
 import BackButton from '../components/ui/BackButton';
 import PressableScale from '../components/ui/PressableScale';
 import SectionHeader from '../components/ui/SectionHeader';
 import { Skeleton } from '../components/ui/Skeleton';
-import { AnimatedProgressBar, BreatheView, FadeSlideIn, FloatView, PulseScale, ShimmerBand } from '../components/ui/motion';
+import { FadeSlideIn, FloatView, PulseScale } from '../components/ui/motion';
+import ScoreBreakdownAccordion from '../components/customer/ScoreBreakdownAccordion';
 import { CADENCE_AI } from '../mockData';
 
 interface LessonItem {
@@ -92,6 +92,20 @@ export default function CustomerFile({
 
   const breakdown = customer.score_breakdown;
 
+  const scoreSubtitle = useMemo(() => {
+    const asOf = new Date().toLocaleDateString('en-IN', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    });
+    return (
+      <>
+        is {firstName}'s protection score as of{' '}
+        <Text style={styles.scoreDate}>{asOf}</Text>
+      </>
+    );
+  }, [firstName]);
+
   const coverage = customer.coverage.map((row) => {
     if (row.id === 'health' && hasBooked) {
       return { ...row, covered: true, source: 'sold_by_agent' as const };
@@ -113,48 +127,39 @@ export default function CustomerFile({
       </View>
 
       <FadeSlideIn index={0}>
-      <LinearGradient
-        colors={[...colors.customer.hero]}
-        style={[styles.scoreCard, shadows.cardLifted]}
-      >
-        <ShimmerBand bandWidth={64} duration={3000} style={styles.scoreShimmer} />
-        <Text style={styles.scoreLabel}>{firstName.toUpperCase()}'S PROTECTION SCORE</Text>
-        <PulseScale min={1} max={1.05} duration={1600}>
-          <ScoreRing score={score} size={150} strokeColor="#6EE7B7" trackColor="rgba(255,255,255,0.14)" />
-        </PulseScale>
-        <BreatheView min={0.85} max={1} duration={1800}>
-          <View style={styles.deltaBadge}>
-            <Text style={styles.deltaText}>{deltaText}</Text>
+      <View style={[styles.scoreCard, shadows.cardLifted]}>
+        <View style={styles.scoreCardTop}>
+          <Text style={styles.scoreEyebrow}>PROTECTION SCORE</Text>
+          <Text style={styles.scoreGreeting}>{firstName}'s profile</Text>
+        </View>
+        <ScoreMeter
+          score={score}
+          subtitle={scoreSubtitle}
+          scoreColor={colors.heroEnd}
+        />
+        <View style={styles.deltaBadge}>
+          <View style={styles.deltaIcon}>
+            <Text style={styles.deltaIconText}>!</Text>
           </View>
-        </BreatheView>
+          <Text style={styles.deltaText}>{deltaText}</Text>
+        </View>
         <Text style={styles.seeded}>
           Built from what PBPartners already holds for {customer.name}
         </Text>
-      </LinearGradient>
+      </View>
       </FadeSlideIn>
 
       <FadeSlideIn index={1}>
-      <View style={[styles.panel, shadows.card]}>
-        <SectionHeader title="Score breakdown" accent={colors.heroEnd} />
-        {breakdown.map((row, i) => {
-          const pct = Math.min((row.score / row.max) * 100, 100);
-          return (
-            <View key={row.key} style={styles.breakdownRow}>
-              <View style={styles.breakdownHeader}>
-                <Text style={styles.breakdownName}>{row.name}</Text>
-                <Text style={styles.breakdownVal}>
-                  {row.score}/{row.max}
-                </Text>
-              </View>
-              <AnimatedProgressBar
-                pct={pct}
-                fillColor={colors.heroEnd}
-                trackColor="#F1F5F9"
-                height={6}
-              />
-            </View>
-          );
-        })}
+      <View style={styles.breakdownWrap}>
+        <ScoreBreakdownAccordion
+          rows={breakdown}
+          getScore={(key) => breakdown.find((r) => r.key === key)?.score ?? 0}
+          headerTitle="View score breakdown"
+          sectionLabel="Score breakdown"
+          accentColor={colors.heroEnd}
+          fillColor={colors.heroEnd}
+          trackColor="#F1F5F9"
+        />
       </View>
       </FadeSlideIn>
 
@@ -285,53 +290,84 @@ const styles = StyleSheet.create({
   scoreCard: {
     marginHorizontal: space[4],
     borderRadius: radius.xl,
-    padding: space[6],
+    paddingTop: space[5],
+    paddingBottom: space[5],
+    paddingHorizontal: space[3],
     alignItems: 'center',
     marginBottom: space[4],
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.border.subtle,
     overflow: 'hidden',
-    position: 'relative',
   },
-  scoreShimmer: { opacity: 0.32 },
-  scoreLabel: {
-    fontFamily: fonts.headingExtra,
-    fontSize: 11,
-    color: 'rgba(255,255,255,0.9)',
-    letterSpacing: 1.5,
-    marginBottom: 16,
+  scoreCardTop: {
+    alignSelf: 'stretch',
+    paddingHorizontal: space[2],
+    marginBottom: space[1],
+  },
+  scoreEyebrow: {
+    fontFamily: fonts.bodyBold,
+    fontSize: 10,
+    color: colors.text.tertiary,
+    letterSpacing: 1.2,
+  },
+  scoreGreeting: {
+    fontFamily: fonts.heading,
+    fontSize: 18,
+    color: colors.text.primary,
+    marginTop: 2,
+  },
+  scoreDate: {
+    fontFamily: fonts.bodySemi,
+    color: colors.text.secondary,
   },
   deltaBadge: {
-    backgroundColor: 'rgba(255,255,255,0.15)',
-    borderRadius: radius.pill,
-    paddingHorizontal: 18,
-    paddingVertical: 8,
-    marginTop: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: '#EFF6FF',
+    borderRadius: radius.lg,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    marginTop: space[2],
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.25)',
+    borderColor: '#DBEAFE',
+    alignSelf: 'stretch',
+    marginHorizontal: space[2],
   },
-  deltaText: { fontFamily: fonts.bodySemi, fontSize: 12, color: '#FFF', textAlign: 'center' },
+  deltaIcon: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: colors.heroEnd,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  deltaIconText: {
+    fontFamily: fonts.bodyBold,
+    fontSize: 13,
+    color: colors.white,
+    marginTop: -1,
+  },
+  deltaText: {
+    fontFamily: fonts.bodySemi,
+    fontSize: 13,
+    color: colors.heroEnd,
+    flex: 1,
+    lineHeight: 18,
+  },
   seeded: {
     fontFamily: fonts.body,
     fontSize: 11,
-    color: 'rgba(255,255,255,0.8)',
+    color: colors.text.tertiary,
     marginTop: 10,
     textAlign: 'center',
     lineHeight: 16,
   },
-  panel: {
+  breakdownWrap: {
     marginHorizontal: 16,
-    backgroundColor: colors.white,
-    borderRadius: radius.lg,
-    padding: 18,
     marginBottom: 16,
-    borderWidth: 1,
-    borderColor: colors.canvas,
   },
-  breakdownRow: { marginBottom: 14 },
-  breakdownHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },
-  breakdownName: { fontFamily: fonts.bodySemi, fontSize: 14, color: colors.navy },
-  breakdownVal: { fontFamily: fonts.heading, fontSize: 13, color: colors.heroEnd },
-  barTrack: { height: 8, backgroundColor: 'rgba(43,82,204,0.1)', borderRadius: 4, overflow: 'hidden' },
-  barFill: { height: '100%', borderRadius: 4 },
   enrichCard: {
     marginHorizontal: 16,
     borderWidth: 2,
