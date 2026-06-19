@@ -64,7 +64,7 @@ export async function sendMessage(
 
   // 5. Build full prompt with role-aware system prompt
   const systemPrompt = buildChatSystemPrompt(contextStr, callerRole);
-  const suggestionsInstruction = `\n\nAFTER your response, on a new line write "SUGGESTIONS:" followed by exactly 3 short follow-up questions the ${callerRole === 'partner' ? 'advisor' : 'customer'} might ask next, separated by "|". Keep each under 40 characters. Base them on the customer's actual data and gaps.`;
+  const suggestionsInstruction = '\n\nAFTER your response, on a new line write "SUGGESTIONS:" followed by exactly 3 short emoji-prefixed follow-up prompts separated by "|". Max 30 chars each. Make them fun and tappable.';
 
   const fullPrompt = historyText
     ? `${systemPrompt}${suggestionsInstruction}\n\nCONVERSATION SO FAR:\n${historyText}\n\n${senderLabel}: ${userMessage}\nCoach:`
