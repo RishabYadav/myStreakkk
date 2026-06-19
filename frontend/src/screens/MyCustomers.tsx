@@ -1,19 +1,20 @@
 import React from 'react';
 import { View, Text, ScrollView, StyleSheet } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Feather } from '@expo/vector-icons';
 import { colors, fonts, radius, space, type as typeScale } from '../theme';
 import { Customer } from '../types';
 import ScorePuck from '../components/ScorePuck';
 import PressableScale from '../components/ui/PressableScale';
 import { Skeleton } from '../components/ui/Skeleton';
-import { BreatheView, FadeSlideIn, LiveDot, ShimmerBand } from '../components/ui/motion';
+import { FadeSlideIn, LiveDot } from '../components/ui/motion';
+import PartnerScreenHeader from '../components/partner/PartnerScreenHeader';
 
 interface Props {
   customers: Customer[];
   topOpportunityId?: string | null;
   loading?: boolean;
   onOpenCustomer: (id: string) => void;
+  onBack: () => void;
 }
 
 function dependentsLabel(customer: Customer): string | null {
@@ -64,7 +65,7 @@ function CustomerListSkeleton() {
   );
 }
 
-export default function MyCustomers({ customers, topOpportunityId, loading, onOpenCustomer }: Props) {
+export default function MyCustomers({ customers, topOpportunityId, loading, onOpenCustomer, onBack }: Props) {
   const sorted = [...customers].sort((a, b) => b.opportunity_score - a.opportunity_score);
   // Use API-provided top opportunity, or fall back to first in sorted list
   const topId = topOpportunityId ?? sorted[0]?.customer_id ?? null;
@@ -75,19 +76,17 @@ export default function MyCustomers({ customers, topOpportunityId, loading, onOp
       contentContainerStyle={styles.content}
       showsVerticalScrollIndicator={false}
     >
-      <LinearGradient colors={[...colors.partner.hero]} style={styles.header}>
-        <BreatheView style={styles.headerGlow} duration={3200} min={0.25} max={0.85} />
-        <ShimmerBand bandWidth={72} duration={3000} style={styles.headerShimmer} />
-        <Text style={styles.kicker}>Portfolio</Text>
-        <Text style={styles.title}>My Customers</Text>
-        <Text style={styles.sub}>
-          Ranked by opportunity score — highest conversion priority first.
-        </Text>
+      <PartnerScreenHeader
+        onBack={onBack}
+        kicker="Portfolio"
+        title="My Customers"
+        subtitle="Ranked by opportunity score — highest conversion priority first."
+      >
         <View style={styles.headerMeta}>
           <LiveDot color="#6EE7B7" size={6} />
           <Text style={styles.headerMetaText}>{sorted.length} clients · live ranking</Text>
         </View>
-      </LinearGradient>
+      </PartnerScreenHeader>
 
       {loading ? (
         <CustomerListSkeleton />
@@ -173,36 +172,6 @@ export default function MyCustomers({ customers, topOpportunityId, loading, onOp
 const styles = StyleSheet.create({
   scroll: { flex: 1, backgroundColor: colors.surface.canvas },
   content: { paddingBottom: space[11] },
-  header: {
-    paddingHorizontal: space[5],
-    paddingTop: space[6],
-    paddingBottom: space[6],
-    borderBottomLeftRadius: radius.xl,
-    borderBottomRightRadius: radius.xl,
-    overflow: 'hidden',
-    position: 'relative',
-  },
-  headerGlow: {
-    position: 'absolute',
-    top: -40,
-    left: 0,
-    right: 0,
-    height: 140,
-    backgroundColor: 'rgba(255,255,255,0.06)',
-  },
-  headerShimmer: { opacity: 0.28 },
-  kicker: {
-    ...typeScale.label,
-    color: colors.text.inverseMuted,
-    marginBottom: space[2],
-  },
-  title: { ...typeScale.title, color: colors.text.inverse },
-  sub: {
-    ...typeScale.bodySm,
-    color: colors.text.inverseMuted,
-    marginTop: space[2],
-    maxWidth: 320,
-  },
   headerMeta: {
     flexDirection: 'row',
     alignItems: 'center',

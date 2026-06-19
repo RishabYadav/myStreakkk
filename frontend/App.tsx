@@ -450,18 +450,12 @@ function MainShell({
     if (isCustomerFlow) {
       return { variant: 'customer-light', badge: 'Preview' };
     }
-    if (activeTab === 'streak') {
-      return null;
-    }
-    if (activeTab === 'grow' || activeTab === 'profile') {
-      return { variant: 'partner-light', badge: 'Partner' };
-    }
-    return { variant: 'partner-light', badge: 'Partner' };
+    return null;
   })();
 
   const statusBarStyle = flowNavConfig
     ? flowNavStatusBar(flowNavConfig.variant)
-    : !isCustomerFlow && activeTab === 'streak'
+    : !isCustomerFlow
       ? 'light'
       : 'dark';
 
@@ -524,7 +518,13 @@ function MainShell({
           />
         );
       case 'grow':
-        return <GrowScreen customers={customers} streakDay={agent.streak_day} />;
+        return (
+          <GrowScreen
+            customers={customers}
+            streakDay={agent.streak_day}
+            onBack={onSwitchExperience}
+          />
+        );
       case 'customers':
         return (
           <MyCustomers
@@ -532,10 +532,11 @@ function MainShell({
             topOpportunityId={topOpportunityId}
             loading={customersLoading}
             onOpenCustomer={(id) => onSelectCustomer(id)}
+            onBack={onSwitchExperience}
           />
         );
       case 'profile':
-        return <Profile agent={agent} />;
+        return <Profile agent={agent} onBack={onSwitchExperience} />;
       default:
         return null;
     }

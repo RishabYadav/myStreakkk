@@ -6,18 +6,18 @@ import { colors, fonts, radius, space, type as typeScale } from '../theme';
 import { AgentState } from '../types';
 import { getInitials } from '../utils';
 import Card from '../components/ui/Card';
+import PartnerScreenHeader from '../components/partner/PartnerScreenHeader';
 import {
-  BreatheView,
   FadeSlideIn,
   FloatView,
   LiveDot,
   PulseScale,
-  ShimmerBand,
 } from '../components/ui/motion';
 import CoinIcon from '../components/ui/CoinIcon';
 
 interface Props {
   agent: AgentState;
+  onBack: () => void;
 }
 
 function InfoRow({
@@ -48,27 +48,26 @@ function InfoRow({
   );
 }
 
-export default function Profile({ agent }: Props) {
+export default function Profile({ agent, onBack }: Props) {
   const initials = getInitials(agent.name);
+  const activeChip = (
+    <PulseScale min={1} max={1.04} duration={1400}>
+      <View style={styles.activeChip}>
+        <LiveDot color={colors.status.success} size={8} />
+        <Text style={styles.activeText}>Active POSP</Text>
+      </View>
+    </PulseScale>
+  );
 
   return (
     <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-      <LinearGradient colors={[...colors.partner.hero]} style={styles.hero}>
-        <BreatheView style={styles.heroGlow} duration={3200} min={0.25} max={0.85} />
-        <ShimmerBand bandWidth={72} duration={3200} style={styles.heroShimmer} />
-        <View style={styles.heroTop}>
-          <Text style={styles.heroTitle}>My Profile</Text>
-          <PulseScale min={1} max={1.04} duration={1400}>
-            <View style={styles.activeChip}>
-              <LiveDot color={colors.status.success} size={8} />
-              <Text style={styles.activeText}>Active POSP</Text>
-            </View>
-          </PulseScale>
-        </View>
-        <Text style={styles.heroSub}>
-          PBPartners certified POSP partner portal. Your records, compliance, and licensing details.
-        </Text>
-      </LinearGradient>
+      <PartnerScreenHeader
+        onBack={onBack}
+        kicker="Partner portal"
+        title="My Profile"
+        subtitle="PBPartners certified POSP partner portal. Your records, compliance, and licensing details."
+        trailing={activeChip}
+      />
 
       <View style={styles.body}>
         <FadeSlideIn index={0}>
@@ -133,26 +132,6 @@ export default function Profile({ agent }: Props) {
 const styles = StyleSheet.create({
   scroll: { flex: 1, backgroundColor: colors.surface.canvas },
   content: { paddingBottom: space[11] },
-  hero: {
-    paddingHorizontal: space[5],
-    paddingTop: space[4],
-    paddingBottom: space[6],
-    borderBottomLeftRadius: radius.xl,
-    borderBottomRightRadius: radius.xl,
-    overflow: 'hidden',
-    position: 'relative',
-  },
-  heroGlow: {
-    position: 'absolute',
-    top: -40,
-    left: 0,
-    right: 0,
-    height: 160,
-    backgroundColor: 'rgba(255,255,255,0.06)',
-  },
-  heroShimmer: { opacity: 0.3 },
-  heroTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: space[2] },
-  heroTitle: { ...typeScale.title, color: colors.text.inverse },
   activeChip: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -165,7 +144,6 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill,
   },
   activeText: { ...typeScale.label, color: '#6EE7B7', fontSize: 10 },
-  heroSub: { ...typeScale.bodySm, color: colors.text.inverseMuted },
   body: { padding: space[4], gap: space[4] },
   card: { marginBottom: 0 },
   profileRow: {

@@ -1,8 +1,8 @@
 /**
  * Partner-side API adapter.
  *
- * Converts Partner Intelligence and Cadence responses into the existing
- * frontend view models so screens do not need backend-specific logic.
+ * Fetches ranked customers and cadence data from the Protection Coach Engine,
+ * converting responses into frontend view models.
  */
 
 import {
@@ -16,33 +16,31 @@ import {
 
 const API_BASE = process.env.EXPO_PUBLIC_API_BASE ?? 'http://localhost:3000';
 
-interface ApiScoreDimension {
-  score: number;
-  max: number;
-}
+// ─── Backend response types (matches customers-ranked endpoint) ──
 
-interface ApiPartnerCustomer {
+interface ApiCustomerRanked {
   customer_id: string;
   name: string;
-  protection_intelligence_score: number | null;
-  protection_breakdown: Record<string, ApiScoreDimension> | null;
+  initials: string;
+  protection_intelligence_score: number;
   opportunity_score: number;
   opportunity_breakdown: Record<string, number> | null;
-  coverage: {
-    health: boolean;
-    term: boolean;
-    life: boolean;
-    motor: boolean;
-  };
+  gapSummary: string;
+  renewsInDays: number;
   why: string[];
+  whyOpportunity: string;
+  customerTip: string;
+  score_breakdown: Array<{ key: string; name: string; score: number; max: number }>;
+  coverage: Array<{ id: string; name: string; covered: boolean; source: string | null; icon: string }>;
+  weak_spots: string[];
+  top_gap: string;
 }
 
-interface PartnerIntelligenceResponse {
+interface CustomersRankedResponse {
   success: boolean;
   data: {
-    partner_id: string;
-    customers_ranked: ApiPartnerCustomer[];
-    top_opportunity: string;
+    customers_ranked: ApiCustomerRanked[];
+    top_opportunity: string | null;
   };
 }
 
@@ -87,31 +85,7 @@ interface PartnerContactResponse {
   data: PartnerContact;
 }
 
-const BREAKDOWN_LABELS: Record<string, string> = {
-  coverage_adequacy: 'Coverage Adequacy',
-  life_stage_readiness: 'Life Stage Readiness',
-  financial_vulnerability: 'Financial Vulnerability',
-  family_risk_protection: 'Family Risk Protection',
-  protection_freshness: 'Protection Freshness',
-  engagement_strength: 'Engagement Strength',
-  data_confidence: 'Data Confidence',
-};
-
-const COVERAGE_META: Record<CoverageRow['id'], { name: string; icon: string }> = {
-  motor: { name: 'Motor', icon: '🚗' },
-  life: { name: 'Life', icon: '🧬' },
-  health: { name: 'Health', icon: '🏥' },
-  term: { name: 'Term', icon: '📄' },
-};
-
-const LESSON_ICONS: Record<string, string> = {
-  hospital: '🏥',
-  document: '📄',
-  car: '🚗',
-  shield: '🛡️',
-  family: '👨‍👩‍👧‍👦',
-  money: '💰',
-};
+// ─── Constants ────────────────────────────────────────────────
 
 const AVATAR_PALETTES: [string, string][] = [
   ['#F8D26A', '#E89B17'],
@@ -124,28 +98,44 @@ const AVATAR_PALETTES: [string, string][] = [
   ['#FCD34D', '#B45309'],
 ];
 
-export async function fetchPartnerIntelligence(partnerId: string): Promise<{
+const LESSON_ICONS: Record<string, string> = {
+  hospital: '🏥',
+  document: '📄',
+  car: '🚗',
+  shield: '🛡️',
+  family: '👨\u200D👩\u200D👧\u200D👦',
+  money: '💰',
+};
+
+// ─── Public API functions ─────────────────────────────────────
+
+/**
+ * Fetch all customers ranked by opportunity score.
+ * Calls /api/v1/partner/all/customers-ranked (single-partner demo mode).
+ */
+export async function fetchPartnerIntelligence(_partnerId: string): Promise<{
   customers: Customer[];
   topOpportunity: string;
 } | null> {
   try {
-    const response = await fetch(
-      `${API_BASE}/api/v1/partner/${encodeURIComponent(partnerId)}/intelligence`
-    );
+    const response = await fetch(`${API_BASE}/api/v1/partner/all/customers-ranked`);
     if (!response.ok) return null;
 
-    const json = (await response.json()) as PartnerIntelligenceResponse;
+    const json = (await response.json()) as CustomersRankedResponse;
     if (!json.success || !json.data.customers_ranked.length) return null;
 
     return {
       customers: json.data.customers_ranked.map(toFrontendCustomer),
-      topOpportunity: json.data.top_opportunity,
+      topOpportunity: json.data.top_opportunity ?? json.data.customers_ranked[0].customer_id,
     };
   } catch {
     return null;
   }
 }
 
+/**
+ * Fetch partner contact info for a customer.
+ */
 export async function fetchPartnerContact(
   partnerId: string,
   customerId: string
@@ -162,6 +152,9 @@ export async function fetchPartnerContact(
   }
 }
 
+/**
+ * Fetch AI cadence data for partner's top opportunity.
+ */
 export async function fetchCadence(
   partnerId: string,
   customerId?: string,
@@ -194,6 +187,8 @@ export async function fetchCadence(
   }
 }
 
+// ─── Helpers for StreakHome ────────────────────────────────────
+
 export function cadenceToMission(cadence: CadenceData): MissionItem {
   return {
     id: 'ai-combo',
@@ -214,75 +209,24 @@ export function cadenceToInsights(cadence: CadenceData): AiSlide[] {
   }));
 }
 
-function toFrontendCustomer(customer: ApiPartnerCustomer, index: number): Customer {
-  const products: CoverageRow['id'][] = ['health', 'term', 'life', 'motor'];
-  const missingProducts = products.filter((product) => !customer.coverage[product]);
-  const renewalDays = extractRenewalDays(customer.why);
-  const topGap = missingProducts[0] ?? 'none';
+// ─── Transform backend → frontend Customer ────────────────────
 
+function toFrontendCustomer(customer: ApiCustomerRanked, index: number): Customer {
   return {
     customer_id: customer.customer_id,
     name: customer.name,
-    initials: customer.name
-      .split(/\s+/)
-      .filter(Boolean)
-      .map((part) => part[0])
-      .join('')
-      .slice(0, 2)
-      .toUpperCase(),
-    protection_intelligence_score: customer.protection_intelligence_score ?? 0,
+    initials: customer.initials,
+    protection_intelligence_score: customer.protection_intelligence_score,
     opportunity_score: customer.opportunity_score,
-    gapSummary: buildGapSummary(missingProducts, renewalDays),
+    gapSummary: customer.gapSummary,
     avatarColors: AVATAR_PALETTES[index % AVATAR_PALETTES.length],
-    renewsInDays: renewalDays ?? 0,
+    renewsInDays: customer.renewsInDays,
     why: customer.why,
-    whyOpportunity: customer.why.join(' · '),
-    customerTip: customer.why[0] ?? 'Review this customer’s current protection profile.',
-    score_breakdown: toScoreBreakdown(customer.protection_breakdown),
-    coverage: (['motor', 'life', 'health', 'term'] as CoverageRow['id'][]).map(
-      (product) => ({
-        id: product,
-        name: COVERAGE_META[product].name,
-        icon: COVERAGE_META[product].icon,
-        covered: customer.coverage[product],
-        source: customer.coverage[product] ? 'pb_held' : null,
-      })
-    ),
-    weak_spots: missingProducts,
-    top_gap: topGap,
+    whyOpportunity: customer.whyOpportunity,
+    customerTip: customer.customerTip || '',
+    score_breakdown: customer.score_breakdown as ScoreDimension[],
+    coverage: customer.coverage as CoverageRow[],
+    weak_spots: customer.weak_spots,
+    top_gap: customer.top_gap,
   };
-}
-
-function toScoreBreakdown(
-  breakdown: Record<string, ApiScoreDimension> | null
-): ScoreDimension[] {
-  if (!breakdown) return [];
-  return Object.entries(breakdown).map(([key, value]) => ({
-    key,
-    name: BREAKDOWN_LABELS[key] ?? key.replace(/_/g, ' '),
-    score: value.score,
-    max: value.max,
-  }));
-}
-
-function extractRenewalDays(why: string[]): number | null {
-  for (const reason of why) {
-    const match = reason.match(/renewal.+?(\d+)\s+day/i);
-    if (match) return Number(match[1]);
-  }
-  return null;
-}
-
-function buildGapSummary(
-  missingProducts: CoverageRow['id'][],
-  renewalDays: number | null
-): string {
-  const gapText = missingProducts.length
-    ? `${missingProducts.map(capitalize).join(' & ')} gap`
-    : 'Core covers active';
-  return renewalDays !== null ? `${gapText} · renews in ${renewalDays} days` : gapText;
-}
-
-function capitalize(value: string): string {
-  return value.charAt(0).toUpperCase() + value.slice(1);
 }

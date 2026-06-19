@@ -16,15 +16,16 @@ export async function startChat(req: Request, res: Response, next: NextFunction)
 
 export async function sendChatMessage(req: Request, res: Response, next: NextFunction) {
   try {
-    const { session_id, customer_id, message } = req.body;
+    const { session_id, customer_id, message, caller_role } = req.body;
 
     if (!session_id || !customer_id || !message) {
       res.status(400).json({ success: false, error: 'session_id, customer_id, and message are required' });
       return;
     }
 
-    const response = await chatService.sendMessage(session_id, customer_id, message);
-    res.json({ success: true, data: { role: 'assistant', content: response } });
+    const role = caller_role || 'customer'; // 'customer' | 'partner'
+    const { content, suggestions } = await chatService.sendMessage(session_id, customer_id, message, role);
+    res.json({ success: true, data: { role: 'assistant', content, suggestions } });
   } catch (error) {
     next(error);
   }

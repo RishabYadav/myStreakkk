@@ -24,11 +24,10 @@ import { colors, fonts, radius, shadows, space, type as typeScale } from '../the
 import { Customer, GrowCardTemplate } from '../types';
 import Toast from '../components/ui/Toast';
 import PressableScale from '../components/ui/PressableScale';
+import PartnerScreenHeader from '../components/partner/PartnerScreenHeader';
 import {
-  BreatheView,
   CarouselDot,
   FadeSlideIn,
-  LiveDot,
 } from '../components/ui/motion';
 import {
   MotorRenewalPoster,
@@ -56,6 +55,7 @@ const GREETING_SNAP = GREETING_CARD_W + 12;
 interface Props {
   customers: Customer[];
   streakDay: number;
+  onBack: () => void;
 }
 
 type SectionTab = 'renewal' | 'pitch' | 'health' | 'greetings';
@@ -263,7 +263,8 @@ function SectionTabs({
   );
 }
 
-export default function GrowScreen({ customers, streakDay }: Props) {
+export default function GrowScreen({ customers, streakDay, onBack }: Props) {
+  const { width: screenWidth } = useWindowDimensions();
   const [activeId, setActiveId] = useState(customers[0]?.customer_id ?? '');
   const [activeTab, setActiveTab] = useState<SectionTab>('renewal');
   const [completedPoints, setCompletedPoints] = useState<Record<number, boolean>>({});
@@ -832,23 +833,20 @@ export default function GrowScreen({ customers, streakDay }: Props) {
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
         stickyHeaderIndices={[1]}
+        nestedScrollEnabled
       >
-        <View style={styles.hero}>
-          <View style={styles.heroTop}>
-            <View>
-              <Text style={styles.largeTitle}>Grow</Text>
-              <Text style={styles.heroSub}>Shareable content · Day {streakDay}</Text>
-            </View>
-            <BreatheView style={styles.livePill} min={0.85} max={1} duration={2000}>
-              <LiveDot color={colors.customerGreen} size={5} />
-              <Text style={styles.livePillText}>Live</Text>
-            </BreatheView>
-          </View>
-
+        <PartnerScreenHeader
+          onBack={onBack}
+          compact
+          center={<Text style={styles.growTitle}>Grow</Text>}
+        >
           <ScrollView
             horizontal
+            nestedScrollEnabled
             showsHorizontalScrollIndicator={false}
+            style={[styles.avatarScroll, { width: screenWidth, marginLeft: -space[5] }]}
             contentContainerStyle={styles.avatarRow}
+            keyboardShouldPersistTaps="handled"
           >
             {customers.map((c) => {
               const active = c.customer_id === customer.customer_id;
@@ -872,28 +870,7 @@ export default function GrowScreen({ customers, streakDay }: Props) {
               );
             })}
           </ScrollView>
-
-          <View style={styles.statsStrip}>
-            <View style={styles.stat}>
-              <Text style={styles.statValue}>{customer.renewsInDays}d</Text>
-              <Text style={styles.statLabel}>Renewal</Text>
-            </View>
-            <View style={styles.statDivider} />
-            <View style={styles.stat}>
-              <Text style={[styles.statValue, { color: colors.partner.accent }]}>
-                {customer.protection_intelligence_score}
-              </Text>
-              <Text style={styles.statLabel}>Score</Text>
-            </View>
-            <View style={styles.statDivider} />
-            <View style={styles.statFlex}>
-              <Text style={styles.statName} numberOfLines={1}>
-                {customer.name}
-              </Text>
-              <Text style={styles.statLabel}>Selected</Text>
-            </View>
-          </View>
-        </View>
+        </PartnerScreenHeader>
 
         <View style={styles.stickyTabs}>
           <SectionTabs active={activeTab} onChange={switchTab} streakDay={streakDay} />
@@ -994,53 +971,28 @@ const styles = StyleSheet.create({
   scroll: { flex: 1 },
   content: { paddingBottom: 110 },
 
-  hero: {
-    backgroundColor: '#FFF',
-    paddingHorizontal: space[4],
-    paddingTop: space[2],
-    paddingBottom: space[3],
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#E5E5EA',
-  },
-  heroTop: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: space[3],
-  },
-  largeTitle: {
+  growTitle: {
     ...typeScale.title,
-    fontSize: 28,
-    letterSpacing: -0.6,
-    color: colors.text.primary,
-  },
-  heroSub: {
-    ...typeScale.caption,
-    color: colors.text.tertiary,
-    marginTop: 2,
-  },
-  livePill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    backgroundColor: colors.customer.accentSoft,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: radius.pill,
-  },
-  livePillText: {
-    fontFamily: fonts.bodyBold,
-    fontSize: 11,
-    color: colors.customerGreen,
-    letterSpacing: 0.3,
+    color: colors.text.inverse,
   },
 
-  avatarRow: { gap: space[3], paddingBottom: space[3] },
-  avatarBtn: { alignItems: 'center', width: 56 },
+  avatarScroll: {
+    flexGrow: 0,
+  },
+  avatarRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: space[2],
+    paddingHorizontal: space[5],
+    paddingTop: space[2],
+    paddingBottom: space[1],
+    paddingRight: space[6],
+  },
+  avatarBtn: { alignItems: 'center', width: 52, flexShrink: 0 },
   avatarCircle: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 2,
@@ -1050,32 +1002,17 @@ const styles = StyleSheet.create({
     borderColor: '#FFF',
     ...shadows.card,
   },
-  avatarInitials: { fontFamily: fonts.headingExtra, fontSize: 14, color: '#FFF' },
+  avatarInitials: { fontFamily: fonts.headingExtra, fontSize: 13, color: '#FFF' },
   avatarInitialsMuted: { color: '#8E8E93' },
   avatarName: {
     fontFamily: fonts.body,
-    fontSize: 11,
-    color: colors.text.tertiary,
-    marginTop: 4,
-    maxWidth: 56,
+    fontSize: 10,
+    color: colors.text.inverseMuted,
+    marginTop: 3,
+    maxWidth: 52,
     textAlign: 'center',
   },
-  avatarNameActive: { fontFamily: fonts.bodyBold, color: colors.text.primary },
-
-  statsStrip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F2F2F7',
-    borderRadius: radius.md,
-    paddingVertical: space[2],
-    paddingHorizontal: space[3],
-  },
-  stat: { alignItems: 'center', minWidth: 52 },
-  statFlex: { flex: 1, paddingLeft: space[2] },
-  statValue: { fontFamily: fonts.headingExtra, fontSize: 17, color: colors.text.primary, letterSpacing: -0.3 },
-  statName: { fontFamily: fonts.bodySemi, fontSize: 14, color: colors.text.primary },
-  statLabel: { fontFamily: fonts.body, fontSize: 10, color: '#8E8E93', marginTop: 1 },
-  statDivider: { width: StyleSheet.hairlineWidth, height: 28, backgroundColor: '#D1D1D6', marginHorizontal: space[2] },
+  avatarNameActive: { fontFamily: fonts.bodyBold, color: colors.text.inverse },
 
   stickyTabs: {
     backgroundColor: '#F2F2F7',
