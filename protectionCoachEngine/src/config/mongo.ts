@@ -4,6 +4,11 @@ import { env } from './env';
 let mongoConnected = false;
 
 export async function connectMongo(): Promise<void> {
+  if (!env.MONGODB_URI) {
+    console.warn('⚠️  MONGODB_URI is not configured (AI Chat will be unavailable)');
+    return;
+  }
+
   try {
     await mongoose.connect(env.MONGODB_URI, {
       serverSelectionTimeoutMS: 5000, // Fail fast if can't connect

@@ -8,6 +8,8 @@ import customerRoutes from './modules/customer/customer.routes';
 import policyRoutes from './modules/policy/policy.routes';
 import scoringRoutes from './modules/scoring/scoring.routes';
 import aiRoutes from './modules/ai/ai.routes';
+import partnerIntelligenceRoutes from './modules/partner-intelligence/partner-intelligence.routes';
+import cadenceRoutes from './modules/cadence/cadence.routes';
 
 const app = express();
 
@@ -26,6 +28,8 @@ app.use('/api/v1/customers', customerRoutes);
 app.use('/api/v1/policies', policyRoutes);
 app.use('/api/v1', scoringRoutes);  // Scoring uses /api/v1/customer/:id/protection etc
 app.use('/api/v1/ai', aiRoutes);
+app.use('/api/v1/partner', partnerIntelligenceRoutes);
+app.use('/api/v1/cadence', cadenceRoutes);
 
 // Error handler (must be last)
 app.use(errorHandler);

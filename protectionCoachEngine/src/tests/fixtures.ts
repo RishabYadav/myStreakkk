@@ -1,0 +1,43 @@
+import { PartnerLead } from '../modules/partner-intelligence/partner-intelligence.types';
+
+export function makeLead(overrides: Partial<PartnerLead> = {}): PartnerLead {
+  return {
+    internal_customer_id: '11111111-1111-1111-1111-111111111111',
+    customer_id: 'C5501',
+    partner_id: 'P001',
+    name: 'Anjali Mehta',
+    date_of_birth: '1990-03-15',
+    life_stage: 'GROWING_FAMILY',
+    marital_status: 'MARRIED',
+    dependents: 2,
+    children: 2,
+    annual_income: 1200000,
+    occupation: 'Software Engineer',
+    existing_liabilities: 5000000,
+    health_cover: false,
+    term_cover: false,
+    life_cover: true,
+    motor_cover: true,
+    external_policies: 1,
+    single_earner: true,
+    home_loan: true,
+    renewal_due_days: 9,
+    last_interaction_days: 15,
+    known_pb_policies: 2,
+    profile_complete: true,
+    protection_intelligence_score: 64,
+    protection_breakdown: null,
+    protection_score_calculated_at: new Date('2026-06-19T10:00:00.000Z'),
+    opportunity_score: 89,
+    opportunity_breakdown: {
+      protection_gap_severity: 22,
+      renewal_urgency: 25,
+      conversion_likelihood: 20,
+      revenue_potential: 12,
+      relationship_strength: 10,
+    },
+    opportunity_score_calculated_at: new Date('2026-06-19T10:00:00.000Z'),
+    why: [],
+    ...overrides,
+  };
+}
