@@ -512,6 +512,7 @@ export default function StreakHome({
 
           <RewardsDesk
             coins={agent.coins}
+            streakDay={agent.streak_day}
             hasBooked={hasBooked}
             onUpdateCoins={onUpdateCoins}
             onSelectBadge={setBadgeModal}
