@@ -20,22 +20,30 @@ interface Badge {
 
 interface Props {
   coins: number;
+  streakDay: number;
   hasBooked: boolean;
   onUpdateCoins: (amount: number) => void;
   onSelectBadge: (badge: Badge) => void;
   onToast: (msg: string) => void;
 }
 
-const BADGES: Omit<Badge, 'earned'>[] = [
-  { id: 'fast', name: 'Fast Starter', day: '3 Days', emoji: '⚡', description: 'First milestone of streak dedication. Keep the momentum going!' },
-  { id: 'weekly', name: 'Weekly Warrior', day: '7 Days', emoji: '🏆', description: 'Consecutive days of supreme sales outreach dedication.' },
-  { id: 'sentinel', name: 'Streak Sentinel', day: '14 Days', emoji: '🛡️', description: 'Elite protector of active client opportunities.' },
-  { id: 'monthly', name: 'Monthly Master', day: '30 Days', emoji: '👑', description: 'Legendary agent tier with maximum metrics and active protection.' },
+const BADGES: (Omit<Badge, 'earned'> & { threshold: number })[] = [
+  { id: 'fast', name: 'Fast Starter', day: '3 Days', emoji: '⚡', threshold: 3, description: 'First milestone of streak dedication. Keep the momentum going!' },
+  { id: 'weekly', name: 'Weekly Warrior', day: '7 Days', emoji: '🏆', threshold: 7, description: 'Consecutive days of supreme sales outreach dedication.' },
+  { id: 'sentinel', name: 'Streak Sentinel', day: '14 Days', emoji: '🛡️', threshold: 14, description: 'Elite protector of active client opportunities.' },
+  { id: 'monthly', name: 'Monthly Master', day: '30 Days', emoji: '👑', threshold: 30, description: 'Legendary agent tier with maximum metrics and active protection.' },
 ];
 
 type RewardsTab = 'trophies' | 'shareables' | 'safeguards';
 
-export default function RewardsDesk({ coins, hasBooked, onUpdateCoins, onSelectBadge, onToast }: Props) {
+function isBadgeEarned(badge: typeof BADGES[number], streakDay: number, hasBooked: boolean): boolean {
+  if (badge.id === 'monthly') {
+    return streakDay >= badge.threshold || hasBooked;
+  }
+  return streakDay >= badge.threshold;
+}
+
+export default function RewardsDesk({ coins, streakDay, hasBooked, onUpdateCoins, onSelectBadge, onToast }: Props) {
   const [tab, setTab] = useState<RewardsTab>('trophies');
   const [frostProtected, setFrostProtected] = useState(false);
   const [freezeModalOpen, setFreezeModalOpen] = useState(false);
@@ -47,7 +55,7 @@ export default function RewardsDesk({ coins, hasBooked, onUpdateCoins, onSelectB
 
   const badges: Badge[] = BADGES.map((b) => ({
     ...b,
-    earned: b.id === 'monthly' ? hasBooked : true,
+    earned: isBadgeEarned(b, streakDay, hasBooked),
   }));
 
   const handleBuySafeguard = () => {
@@ -99,8 +107,10 @@ export default function RewardsDesk({ coins, hasBooked, onUpdateCoins, onSelectB
         ) : (
           <Text style={[styles.badgeEmoji, styles.badgeEmojiLocked]}>{b.emoji}</Text>
         )}
-        <Text style={styles.badgeName} numberOfLines={2}>{b.name}</Text>
-        <Text style={styles.badgeDay}>{b.day} Goal</Text>
+        <Text style={[styles.badgeName, !b.earned && styles.badgeNameLocked]} numberOfLines={2}>{b.name}</Text>
+        <Text style={[styles.badgeDay, !b.earned && styles.badgeDayLocked]}>
+          {b.earned ? `${b.day} Goal` : `Unlock at ${b.day}`}
+        </Text>
       </PressableScale>
     </View>
   );
@@ -296,7 +306,11 @@ const styles = StyleSheet.create({
     borderColor: colors.border.subtle,
     position: 'relative',
   },
-  badgeLocked: { opacity: 0.45 },
+  badgeLocked: {
+    opacity: 0.72,
+    backgroundColor: '#EEF2F6',
+    borderColor: colors.border.default,
+  },
   earnedDot: {
     position: 'absolute',
     top: space[1],
@@ -310,7 +324,9 @@ const styles = StyleSheet.create({
   badgeEmoji: { fontSize: 26, marginBottom: space[1] },
   badgeEmojiLocked: { opacity: 0.5 },
   badgeName: { fontFamily: fonts.headingExtra, fontSize: typeScale.caption.fontSize, color: colors.text.primary, textAlign: 'center', lineHeight: 16 },
+  badgeNameLocked: { color: colors.text.secondary },
   badgeDay: { ...typeScale.label, color: colors.text.tertiary, fontSize: 9, marginTop: 2 },
+  badgeDayLocked: { color: colors.text.tertiary },
   shareGrid: { flexDirection: 'row', gap: space[2] },
   shareCard: {
     flex: 1,
