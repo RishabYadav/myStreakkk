@@ -7,6 +7,13 @@
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
+
+    "extra": {
+      "eas": {
+        "projectId": "d4162243-d783-45b4-9d06-6344122d89f8"
+      }
+    },
+
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
