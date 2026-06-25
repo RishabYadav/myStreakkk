@@ -19,6 +19,7 @@ Built for **Hackstreet — PolicyBazaar Hackathon**
 |---|---|
 | 🎬 Product Demo | [Watch Demo](./hackstreet%20video.mp4) |
 | 📄 Presentation | [View Slides](./Presentation-%20MyStreak%20.pdf) |
+| 📄 Deployed app(Android)| [Delployed app](https://expo.dev/accounts/rishabyadav469s-team/projects/mystreakkk/builds/7e7c3245-cdc1-496f-9313-528d157b57d0) |
 
 ---
 
